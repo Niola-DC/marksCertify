@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Certificate — {{COURSE_TITLE}}</title>
+    <style>
+        /* ── Reset ─────────────────────────────────────── */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* ── Page — A4 Landscape ────────────────────────
+           Puppeteer will render this at exactly 297mm × 210mm.
+           All sizing is in mm so it's print-accurate.
+        ─────────────────────────────────────────────── */
+        html, body {
+          width: 297mm;
+          height: 210mm;
+          font-family: 'Georgia', 'Times New Roman', serif;
+          background: #0D0D0D;
+          color: #FFFFFF;
+          overflow: hidden;
+        }
+
+        .certificate {
+          width: 297mm;
+          height: 210mm;
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 14mm 18mm;
+        }
+
+        /* ── Decorative border ──────────────────────── */
+        .outer-border {
+          position: absolute;
+          inset: 5mm;
+          border: 1.5px solid #B8962E;
+        }
+
+        .inner-border {
+          position: absolute;
+          inset: 7mm;
+          border: 0.5px solid rgba(184, 150, 46, 0.4);
+        }
+
+        /* ── Corner ornaments ───────────────────────── */
+        .corner {
+          position: absolute;
+          width: 12mm;
+          height: 12mm;
+          border-color: #B8962E;
+          border-style: solid;
+        }
+        .corner-tl { top: 4mm;  left: 4mm;  border-width: 2px 0 0 2px; }
+        .corner-tr { top: 4mm;  right: 4mm; border-width: 2px 2px 0 0; }
+        .corner-bl { bottom: 4mm; left: 4mm;  border-width: 0 0 2px 2px; }
+        .corner-br { bottom: 4mm; right: 4mm; border-width: 0 2px 2px 0; }
+
+        /* ── Header ─────────────────────────────────── */
+        .header {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          margin-bottom: 6mm;
+          margin-top: 24mm;
+          width: 100%;
+        }
+
+        .institution-logo {
+          height: 14mm;
+          max-width: 40mm;
+          object-fit: contain;
+          margin-bottom: 2mm;
+        }
+
+        .institution-name {
+          font-family: 'Arial', sans-serif;
+          font-size: 9pt;
+          font-weight: 600;
+          letter-spacing: 3px;
+          text-transform: uppercase;
+          color: #B8962E;
+        }
+
+        /* ── Divider ────────────────────────────────── */
+        .divider {
+          width: 60mm;
+          height: 0.5px;
+          background: linear-gradient(to right, transparent, #B8962E, transparent);
+          margin: 4mm auto;
+        }
+
+        /* ── Certificate label ──────────────────────── */
+        .cert-label {
+          font-family: 'Arial', sans-serif;
+          font-size: 7pt;
+          letter-spacing: 5px;
+          text-transform: uppercase;
+          color: rgba(184, 150, 46, 0.8);
+          margin-bottom: 2mm;
+        }
+
+        /* ── Presents text ──────────────────────────── */
+        .presents {
+          font-size: 8pt;
+          color: rgba(255,255,255,0.6);
+          font-style: italic;
+          margin-bottom: 3mm;
+        }
+
+        /* ── Earner name ────────────────────────────── */
+        .earner-name {
+          font-size: 28pt;
+          font-weight: normal;
+          color: #FFFFFF;
+          letter-spacing: 1px;
+          margin-bottom: 3mm;
+          text-align: center;
+          font-style: italic;
+        }
+
+        /* ── Gold underline under name ──────────────── */
+        .name-underline {
+          width: 80mm;
+          height: 1px;
+          background: #B8962E;
+          margin: 0 auto 5mm;
+        }
+
+        /* ── "has successfully completed" ──────────── */
+        .completed-text {
+          font-family: 'Arial', sans-serif;
+          font-size: 8pt;
+          color: rgba(255,255,255,0.6);
+          letter-spacing: 1px;
+          margin-bottom: 3mm;
+        }
+
+        /* ── Course title ───────────────────────────── */
+        .course-title {
+          font-family: 'Arial', sans-serif;
+          font-size: 14pt;
+          font-weight: 700;
+          color: #B8962E;
+          text-align: center;
+          letter-spacing: 0.5px;
+          margin-bottom: 2mm;
+          max-width: 200mm;
+        }
+
+        /* ── Date ───────────────────────────────────── */
+        .issue-date {
+          font-family: 'Arial', sans-serif;
+          font-size: 7.5pt;
+          color: rgba(255,255,255,0.5);
+          margin-bottom: 8mm;
+          letter-spacing: 1px;
+        }
+
+        /* ── Footer: signature + cert ID + QR ──────── */
+        .footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          width: 100%;
+          margin-top: auto;
+        }
+
+        .signature-block {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          min-width: 50mm;
+        }
+
+        .signature-image {
+          height: 10mm;
+          max-width: 40mm;
+          object-fit: contain;
+          margin-bottom: 1mm;
+          filter: brightness(0) invert(1);   /* makes dark signatures visible on black bg */
+        }
+
+        .signature-line {
+          width: 40mm;
+          height: 0.5px;
+          background: rgba(184, 150, 46, 0.6);
+          margin-bottom: 1.5mm;
+        }
+
+        .signatory-name {
+          font-family: 'Arial', sans-serif;
+          font-size: 7pt;
+          font-weight: 600;
+          color: #FFFFFF;
+        }
+
+        .signatory-title {
+          font-family: 'Arial', sans-serif;
+          font-size: 6pt;
+          color: rgba(184, 150, 46, 0.8);
+        }
+
+        /* ── Cert ID block (centre of footer) ──────── */
+        .cert-meta {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1.5mm;
+        }
+
+        .cert-id-label {
+          font-family: 'Arial', sans-serif;
+          font-size: 5.5pt;
+          letter-spacing: 2px;
+          color: rgba(255,255,255,0.35);
+          text-transform: uppercase;
+        }
+
+        .cert-id-value {
+          font-family: 'Arial', sans-serif;
+          font-size: 7pt;
+          font-weight: 600;
+          color: rgba(184, 150, 46, 0.9);
+          letter-spacing: 1px;
+        }
+
+        /* ── QR code ────────────────────────────────── */
+        .qr-block {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1.5mm;
+        }
+
+        .qr-image {
+          width: 18mm;
+          height: 18mm;
+        }
+
+        .qr-label {
+          font-family: 'Arial', sans-serif;
+          font-size: 5pt;
+          color: rgba(255,255,255,0.35);
+          letter-spacing: 1px;
+          text-transform: uppercase;
+        }
+
+        /* ── Watermark (subtle) ─────────────────────── */
+        .watermark {
+          position: absolute;
+          bottom: 9mm;
+          left: 50%;
+          transform: translateX(-50%);
+          font-family: 'Arial', sans-serif;
+          font-size: 5pt;
+          color: rgba(255,255,255,0.1);
+          letter-spacing: 3px;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+<div class="certificate">
+
+    <!-- Decorative borders -->
+    <div class="outer-border"></div>
+    <div class="inner-border"></div>
+
+    <!-- Corner ornaments -->
+    <div class="corner corner-tl"></div>
+    <div class="corner corner-tr"></div>
+    <div class="corner corner-bl"></div>
+    <div class="corner corner-br"></div>
+
+    <!-- Header: institution -->
+    <div class="header">
+        {{#if INSTITUTION_LOGO}}
+        <img class="institution-logo" src="{{INSTITUTION_LOGO}}" alt="{{INSTITUTION_NAME}}" />
+        {{/if}}
+        <div class="institution-name">{{INSTITUTION_NAME}}</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Certificate label -->
+    <div class="cert-label">Certificate of Completion</div>
+
+    <!-- Body -->
+    <div class="presents">This is to certify that</div>
+
+    <div class="earner-name">{{EARNER_NAME}}</div>
+    <div class="name-underline"></div>
+
+    <div class="completed-text">has successfully completed</div>
+
+    <div class="course-title">{{COURSE_TITLE}}</div>
+
+    <div class="issue-date">Issued on {{ISSUE_DATE}}{{#if EXPIRY_DATE}} · Valid until {{EXPIRY_DATE}}{{/if}}</div>
+
+    <!-- Footer -->
+    <div class="footer">
+
+        <!-- Signature -->
+        <div class="signature-block">
+            {{#if SIGNATURE_URL}}
+            <img class="signature-image" src="{{SIGNATURE_URL}}" alt="Signature" />
+            {{/if}}
+            <div class="signature-line"></div>
+            <div class="signatory-name">{{SIGNATORY_NAME}}</div>
+            <div class="signatory-title">{{SIGNATORY_TITLE}}</div>
+        </div>
+
+        <!-- Cert ID -->
+        <div class="cert-meta">
+            <div class="cert-id-label">Certificate ID</div>
+            <div class="cert-id-value">{{CERT_ID}}</div>
+        </div>
+
+        <!-- QR Code -->
+        <div class="qr-block">
+            <img class="qr-image" src="{{QR_DATA_URL}}" alt="Verify certificate" />
+            <div class="qr-label">Scan to verify</div>
+        </div>
+
+    </div>
+
+    <!-- Watermark -->
+    <div class="watermark">Issued by MarksCertify · markscertify.com</div>
+
+</div>
+</body>
+</html>
