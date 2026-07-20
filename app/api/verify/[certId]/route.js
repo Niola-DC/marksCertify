@@ -8,6 +8,7 @@
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js'
+import { rateLimit, getClientKey } from '../../../lib/rateLimit'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -15,7 +16,16 @@ const supabaseAdmin = createClient(
 )
 
 export async function GET(request, { params }) {
-  const { certId } = params   // e.g. "MC-2026-NG-00001"
+  const clientKey = getClientKey(request)
+  const { allowed, resetAt } = rateLimit({ key: `verify:${clientKey}`, limit: 60, windowMs: 60_000 })
+  if (!allowed) {
+    return Response.json(
+      { valid: false, status: 'RATE_LIMITED', message: 'Too many requests. Please try again shortly.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil((resetAt - Date.now()) / 1000)) } }
+    )
+  }
+
+  const { certId } = await params   // Next.js 15+: params is a Promise, must be awaited
 
   if (!certId) {
     return Response.json({ error: 'Certificate ID is required.' }, { status: 400 })
