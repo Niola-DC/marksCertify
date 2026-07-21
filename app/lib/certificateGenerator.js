@@ -120,7 +120,7 @@ export async function generateCertificateForEarner({
     '{{SIGNATORY_TITLE}}': signatoryTitle.trim(),
     '{{CERT_ID}}': certId,
     '{{QR_DATA_URL}}': qrDataUrl,
-    '{{SIGNATURE_URL}}': '',
+    '{{SIGNATURE_URL}}': institution.signature_url || '',
   }
 
   if (!displayExpiryDate) {
@@ -133,6 +133,12 @@ export async function generateCertificateForEarner({
     htmlTemplate = htmlTemplate.replace(/{{#if INSTITUTION_LOGO}}[\s\S]*?{{\/if}}/g, '')
   } else {
     htmlTemplate = htmlTemplate.replace('{{#if INSTITUTION_LOGO}}', '').replace('{{/if}}', '')
+  }
+
+  if (!institution.signature_url) {
+    htmlTemplate = htmlTemplate.replace(/{{#if SIGNATURE_URL}}[\s\S]*?{{\/if}}/g, '')
+  } else {
+    htmlTemplate = htmlTemplate.replace('{{#if SIGNATURE_URL}}', '').replace('{{/if}}', '')
   }
 
   for (const [placeholder, value] of Object.entries(replacements)) {
