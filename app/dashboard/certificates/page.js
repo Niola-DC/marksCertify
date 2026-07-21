@@ -82,8 +82,8 @@ export default function CertificatesPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="relative w-full sm:max-w-sm sm:flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
@@ -93,20 +93,22 @@ export default function CertificatesPage() {
             className="w-full rounded-md border border-zinc-200 bg-white pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-[#B8962E]"
           />
         </div>
-        <button
-          onClick={() => setShowBatchUpload(true)}
-          className="ml-auto flex items-center gap-2 rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-        >
-          <Upload size={16} />
-          Batch Upload
-        </button>
-        <button
-          onClick={() => setShowGenerate(true)}
-          className="flex items-center gap-2 rounded-md bg-[#0D0D0D] px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
-        >
-          <Plus size={16} />
-          Add Certificate
-        </button>
+        <div className="flex gap-2 sm:ml-auto">
+          <button
+            onClick={() => setShowBatchUpload(true)}
+            className="flex flex-1 sm:flex-none items-center justify-center gap-2 rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          >
+            <Upload size={16} />
+            <span className="whitespace-nowrap">Batch Upload</span>
+          </button>
+          <button
+            onClick={() => setShowGenerate(true)}
+            className="flex flex-1 sm:flex-none items-center justify-center gap-2 rounded-md bg-[#0D0D0D] px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+          >
+            <Plus size={16} />
+            <span className="whitespace-nowrap">Add Certificate</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-zinc-200">
