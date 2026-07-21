@@ -91,7 +91,7 @@ export async function POST(request) {
     // ── Step 3: Check plan limits ───────────────────────────
     const { data: institution, error: instError } = await supabaseAdmin
       .from('institutions')
-      .select('name, logo_url, plan_tier, certs_issued_this_month, billing_cycle_start')
+      .select('name, logo_url, signature_url, plan_tier, certs_issued_this_month, billing_cycle_start')
       .eq('id', institutionId)
       .single()
 
