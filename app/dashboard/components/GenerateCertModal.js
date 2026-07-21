@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Modal from './Modal'
 import { useSessionContext } from '../SessionContext'
 
@@ -20,6 +20,26 @@ export default function GenerateCertModal({ onClose, onGenerated }) {
   const [form, setForm] = useState(emptyForm)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+
+  // Pre-fill the signatory from the institution's saved default (Profile
+  // page) — only if the admin hasn't already typed something.
+  useEffect(() => {
+    fetch('/api/institution/profile', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        const institution = json.institution
+        if (!institution) return
+        setForm((prev) => ({
+          ...prev,
+          signatoryName: prev.signatoryName || institution.defaultSignatoryName || '',
+          signatoryTitle: prev.signatoryTitle || institution.defaultSignatoryTitle || '',
+        }))
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function update(field) {
     return (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))
@@ -56,7 +76,7 @@ export default function GenerateCertModal({ onClose, onGenerated }) {
         <Field label="Earner email" value={form.earnerEmail} onChange={update('earnerEmail')} type="email" />
         <Field label="Earner phone" value={form.earnerPhone} onChange={update('earnerPhone')} />
         <Field label="Course / program title" value={form.courseTitle} onChange={update('courseTitle')} required />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Issue date" value={form.issueDate} onChange={update('issueDate')} type="date" />
           <Field label="Expiry date (optional)" value={form.expiryDate} onChange={update('expiryDate')} type="date" />
         </div>

@@ -5,13 +5,18 @@
 // Flow: select CSV -> map columns to cert fields -> review
 // validation -> submit in chunks with a progress bar -> summary
 // (with retry for rows that failed server-side).
+//
+// Signatory name/title default to ONE value applied to the whole
+// batch (how most institutions actually issue certs — one signatory
+// per batch, not one per earner). Admins whose CSV genuinely varies
+// per row can switch to mapping those two fields from columns instead.
 // ============================================================
 
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Papa from 'papaparse'
-import { Upload, Download, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Upload, Download, AlertTriangle, CheckCircle2, Info } from 'lucide-react'
 import Modal from './Modal'
 import { useSessionContext } from '../SessionContext'
 
@@ -19,30 +24,51 @@ const FIELDS = [
   { key: 'earnerName', label: 'Earner Name', required: true, aliases: ['name', 'full name', 'earner name', 'fullname', 'student name', 'earner'] },
   { key: 'earnerEmail', label: 'Earner Email', required: false, aliases: ['email', 'e-mail', 'earner email'] },
   { key: 'earnerPhone', label: 'Earner Phone', required: false, aliases: ['phone', 'phone number', 'mobile', 'whatsapp', 'earner phone'] },
-  { key: 'courseTitle', label: 'Course / Program Title', required: true, aliases: ['course', 'course title', 'program', 'program title', 'course/program title'] },
+  { key: 'courseTitle', label: 'Course / Program Title', required: true, aliases: ['course', 'course title', 'program', 'program title'] },
   { key: 'issueDate', label: 'Issue Date', required: false, aliases: ['issue date', 'date', 'issued', 'issued date'] },
   { key: 'expiryDate', label: 'Expiry Date', required: false, aliases: ['expiry date', 'expiry', 'expires', 'expiration date'] },
-  { key: 'signatoryName', label: 'Signatory Name', required: true, aliases: ['signatory name', 'signatory', 'signed by'] },
-  { key: 'signatoryTitle', label: 'Signatory Title', required: true, aliases: ['signatory title', 'role'] },
 ]
+
+const SIGNATORY_FIELDS = [
+  { key: 'signatoryName', label: 'Signatory Name', required: true, aliases: ['signatory name', 'signatory', 'signed by'] },
+  { key: 'signatoryTitle', label: 'Signatory Title', required: true, aliases: ['signatory title', 'title', 'role'] },
+]
+
+const ALL_FIELDS = [...FIELDS, ...SIGNATORY_FIELDS]
 
 const CHUNK_SIZE = 20
 
-function guessMapping(headers) {
+// Strips possessives/punctuation so "Earner's Name" and "Phone No." match
+// the same way "Earner Name" and "Phone Number" do.
+function normalizeHeader(h) {
+  return h
+    .replace(/['’]s\b/gi, '')
+    .replace(/[^a-z0-9]+/gi, ' ')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+}
+
+function guessMapping(headers, fields) {
+  const normalizedHeaders = headers.map((h) => ({ raw: h, norm: normalizeHeader(h) }))
   const mapping = {}
-  for (const field of FIELDS) {
-    const match = headers.find((h) => {
-      const norm = h.trim().toLowerCase()
-      return norm === field.key.toLowerCase() || field.aliases.includes(norm)
-    })
-    mapping[field.key] = match || ''
+
+  for (const field of fields) {
+    const normAliases = [field.key, ...field.aliases].map(normalizeHeader)
+
+    let match = normalizedHeaders.find((h) => normAliases.includes(h.norm))
+    if (!match) {
+      match = normalizedHeaders.find((h) => normAliases.some((a) => h.norm.includes(a) || a.includes(h.norm)))
+    }
+    mapping[field.key] = match ? match.raw : ''
   }
+
   return mapping
 }
 
 function downloadSampleCsv() {
   const headers = FIELDS.map((f) => f.label).join(',')
-  const example = '"Adaeze Okafor","adaeze@example.com","08012345678","Digital Marketing Bootcamp","2026-07-20","","Eniola Chinemerem","Founder"'
+  const example = '"Adaeze Okafor","adaeze@example.com","08012345678","Digital Marketing Bootcamp","2026-07-20",""'
   const blob = new Blob([`${headers}\n${example}\n`], { type: 'text/csv' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -62,9 +88,38 @@ export default function BatchUploadModal({ onClose, onComplete }) {
   const [mapping, setMapping] = useState({})
   const [parseError, setParseError] = useState(null)
 
+  const [signatoryMode, setSignatoryMode] = useState('same') // same | perRow
+  const [batchSignatoryName, setBatchSignatoryName] = useState('')
+  const [batchSignatoryTitle, setBatchSignatoryTitle] = useState('')
+
+  // Pre-fill from the institution's saved default (Profile page) — only
+  // if the admin hasn't already typed something.
+  useEffect(() => {
+    fetch('/api/institution/profile', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        const institution = json.institution
+        if (!institution) return
+        setBatchSignatoryName((prev) => prev || institution.defaultSignatoryName || '')
+        setBatchSignatoryTitle((prev) => prev || institution.defaultSignatoryTitle || '')
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const [progress, setProgress] = useState({ done: 0, total: 0 })
   const [serverFailures, setServerFailures] = useState([]) // { row, error }
   const [successCount, setSuccessCount] = useState(0)
+
+  // Synchronous re-entrancy guard: prevents a double-fired click (or an
+  // impatient double-click) from submitting the same batch twice and
+  // generating duplicate certificates. A state flag isn't enough here
+  // because two rapid clicks can both read stale state before either
+  // update commits — a ref is checked/set synchronously, so the second
+  // call always sees the first call's guard already up.
+  const submittingRef = useRef(false)
 
   function handleFile(e) {
     const file = e.target.files?.[0]
@@ -82,16 +137,27 @@ export default function BatchUploadModal({ onClose, onComplete }) {
         }
         setCsvHeaders(results.meta.fields)
         setCsvRows(results.data)
-        setMapping(guessMapping(results.meta.fields))
+        setMapping(guessMapping(results.meta.fields, ALL_FIELDS))
         setStep('map')
       },
       error: (err) => setParseError(err.message),
     })
   }
 
-  // Normalize CSV rows using the current column mapping, and split
-  // into rows that pass client-side required-field validation vs. not.
+  const activeFields = signatoryMode === 'perRow' ? ALL_FIELDS : FIELDS
+  const requiredColumnsMapped = FIELDS.filter((f) => f.required).every((f) => mapping[f.key])
+  const requiredSignatoryMapped =
+    signatoryMode === 'same'
+      ? batchSignatoryName.trim() && batchSignatoryTitle.trim()
+      : SIGNATORY_FIELDS.every((f) => mapping[f.key])
+  const readyToReview = requiredColumnsMapped && requiredSignatoryMapped
+
+  // Normalize CSV rows using the current column mapping (+ batch signatory,
+  // if that mode is active), and split into rows that pass required-field
+  // validation vs. not.
   const { validRows, invalidRows } = useMemo(() => {
+    if (!readyToReview) return { validRows: [], invalidRows: [] }
+
     const valid = []
     const invalid = []
 
@@ -102,7 +168,18 @@ export default function BatchUploadModal({ onClose, onComplete }) {
         normalized[field.key] = header ? (rawRow[header] || '').trim() : ''
       }
 
-      const missing = FIELDS.filter((f) => f.required && !normalized[f.key])
+      if (signatoryMode === 'same') {
+        normalized.signatoryName = batchSignatoryName.trim()
+        normalized.signatoryTitle = batchSignatoryTitle.trim()
+      } else {
+        for (const field of SIGNATORY_FIELDS) {
+          const header = mapping[field.key]
+          normalized[field.key] = header ? (rawRow[header] || '').trim() : ''
+        }
+      }
+
+      const fieldsToCheck = signatoryMode === 'perRow' ? ALL_FIELDS : FIELDS
+      const missing = fieldsToCheck.filter((f) => f.required && !normalized[f.key])
 
       if (missing.length > 0) {
         invalid.push({ rowNumber: i + 2, data: normalized, error: `Missing: ${missing.map((f) => f.label).join(', ')}` })
@@ -112,17 +189,21 @@ export default function BatchUploadModal({ onClose, onComplete }) {
     })
 
     return { validRows: valid, invalidRows: invalid }
-  }, [csvRows, mapping])
-
-  const requiredFieldsMapped = FIELDS.filter((f) => f.required).every((f) => mapping[f.key])
+  }, [csvRows, mapping, signatoryMode, batchSignatoryName, batchSignatoryTitle, readyToReview])
 
   async function handleSubmit() {
-    setStep('progress')
-    setProgress({ done: 0, total: validRows.length })
-    setServerFailures([])
-    setSuccessCount(0)
-    await runChunks(validRows, 0)
-    setStep('done')
+    if (submittingRef.current) return
+    submittingRef.current = true
+    try {
+      setStep('progress')
+      setProgress({ done: 0, total: validRows.length })
+      setServerFailures([])
+      setSuccessCount(0)
+      await runChunks(validRows, 0)
+      setStep('done')
+    } finally {
+      submittingRef.current = false
+    }
   }
 
   async function runChunks(rowsToSend, baseSuccessCount) {
@@ -166,12 +247,18 @@ export default function BatchUploadModal({ onClose, onComplete }) {
   }
 
   async function handleRetryFailed() {
-    const retryRows = serverFailures.map((f) => ({ rowNumber: f.rowNumber, data: f.data }))
-    setStep('progress')
-    setProgress({ done: 0, total: retryRows.length })
-    setServerFailures([])
-    await runChunks(retryRows, successCount)
-    setStep('done')
+    if (submittingRef.current) return
+    submittingRef.current = true
+    try {
+      const retryRows = serverFailures.map((f) => ({ rowNumber: f.rowNumber, data: f.data }))
+      setStep('progress')
+      setProgress({ done: 0, total: retryRows.length })
+      setServerFailures([])
+      await runChunks(retryRows, successCount)
+      setStep('done')
+    } finally {
+      submittingRef.current = false
+    }
   }
 
   function handleDone() {
@@ -183,8 +270,8 @@ export default function BatchUploadModal({ onClose, onComplete }) {
       {step === 'select' && (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-zinc-600">
-            Upload a CSV with one row per earner. Required columns: Earner Name, Course/Program Title, Signatory
-            Name, Signatory Title. Up to 500 rows per batch.
+            Upload a CSV with one row per earner. Required columns: Earner Name and Course/Program Title. Up to 500
+            rows per batch.
           </p>
           <button
             onClick={downloadSampleCsv}
@@ -203,32 +290,80 @@ export default function BatchUploadModal({ onClose, onComplete }) {
       )}
 
       {step === 'map' && (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5">
           <p className="text-sm text-zinc-600">
             {csvRows.length} rows found in <span className="font-medium">{fileName}</span>. Match each field to a
             column from your CSV.
           </p>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="flex items-start gap-2 rounded-md bg-zinc-50 border border-zinc-200 p-3 text-xs text-zinc-500">
+            <Info size={14} className="mt-0.5 shrink-0" />
+            Certificates are issued under your logged-in institution — you don&apos;t need an Institution column in
+            your CSV. Any extra columns you have (like Institution) are simply ignored.
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-4">
             {FIELDS.map((field) => (
-              <label key={field.key} className="flex flex-col gap-1 text-sm text-zinc-700">
-                {field.label}
-                {field.required && <span className="text-red-500"> *</span>}
-                <select
-                  value={mapping[field.key] || ''}
-                  onChange={(e) => setMapping((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                  className="border border-zinc-200 rounded-md px-2 py-1.5 text-sm"
-                >
-                  <option value="">— none —</option>
-                  {csvHeaders.map((h) => (
-                    <option key={h} value={h}>{h}</option>
-                  ))}
-                </select>
-              </label>
+              <FieldMappingSelect
+                key={field.key}
+                field={field}
+                value={mapping[field.key] || ''}
+                headers={csvHeaders}
+                onChange={(value) => setMapping((prev) => ({ ...prev, [field.key]: value }))}
+              />
             ))}
           </div>
 
-          {requiredFieldsMapped ? (
+          <div className="border-t border-zinc-200 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-medium text-zinc-700">Signatory</p>
+              <button
+                type="button"
+                onClick={() => setSignatoryMode(signatoryMode === 'same' ? 'perRow' : 'same')}
+                className="text-xs text-[#B8962E] font-medium"
+              >
+                {signatoryMode === 'same' ? 'This CSV has a different signatory per row →' : '← Use one signatory for the whole batch'}
+              </button>
+            </div>
+
+            {signatoryMode === 'same' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="flex flex-col gap-1 text-sm text-zinc-700">
+                  <span>Signatory Name <span className="text-red-500">*</span></span>
+                  <input
+                    value={batchSignatoryName}
+                    onChange={(e) => setBatchSignatoryName(e.target.value)}
+                    placeholder="e.g. Eniola Chinemerem"
+                    className="border border-zinc-200 rounded-md px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm text-zinc-700">
+                  <span>Signatory Title <span className="text-red-500">*</span></span>
+                  <input
+                    value={batchSignatoryTitle}
+                    onChange={(e) => setBatchSignatoryTitle(e.target.value)}
+                    placeholder="e.g. Founder"
+                    className="border border-zinc-200 rounded-md px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <p className="sm:col-span-2 text-xs text-zinc-400">Applied to every certificate in this batch.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {SIGNATORY_FIELDS.map((field) => (
+                  <FieldMappingSelect
+                    key={field.key}
+                    field={field}
+                    value={mapping[field.key] || ''}
+                    headers={csvHeaders}
+                    onChange={(value) => setMapping((prev) => ({ ...prev, [field.key]: value }))}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {readyToReview ? (
             <div className="rounded-md bg-zinc-50 border border-zinc-200 p-4 text-sm">
               <p className="flex items-center gap-2 text-green-700 font-medium">
                 <CheckCircle2 size={16} />
@@ -262,7 +397,7 @@ export default function BatchUploadModal({ onClose, onComplete }) {
             </button>
             <button
               onClick={handleSubmit}
-              disabled={!requiredFieldsMapped || validRows.length === 0}
+              disabled={!readyToReview || validRows.length === 0}
               className="rounded-md bg-[#0D0D0D] px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
             >
               Generate {validRows.length} Certificate{validRows.length === 1 ? '' : 's'}
@@ -337,5 +472,25 @@ export default function BatchUploadModal({ onClose, onComplete }) {
         </div>
       )}
     </Modal>
+  )
+}
+
+function FieldMappingSelect({ field, value, headers, onChange }) {
+  return (
+    <label className="flex flex-col gap-1 text-sm text-zinc-700">
+      <span>
+        {field.label} {field.required && <span className="text-red-500">*</span>}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="border border-zinc-200 rounded-md px-2 py-1.5 text-sm"
+      >
+        <option value="">— none —</option>
+        {headers.map((h) => (
+          <option key={h} value={h}>{h}</option>
+        ))}
+      </select>
+    </label>
   )
 }
