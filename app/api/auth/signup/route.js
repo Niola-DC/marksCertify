@@ -48,8 +48,11 @@ export async function POST(request) {
 
   if (authError) {
     await supabaseAdmin.from('institutions').delete().eq('id', institution.id)
-    const status = authError.message?.toLowerCase().includes('already registered') ? 409 : 500
-    return Response.json({ error: authError.message }, { status })
+    // Always 400 here, regardless of the underlying reason (already
+    // registered vs. some other validation failure) — a status code that
+    // varies by reason turns this into a scriptable oracle for checking
+    // whether an email is already registered.
+    return Response.json({ error: authError.message }, { status: 400 })
   }
 
   // 3. Link admin_users
