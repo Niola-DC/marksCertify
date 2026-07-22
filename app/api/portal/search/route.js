@@ -8,6 +8,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { rateLimit, getClientKey } from '../../../lib/rateLimit'
+import { escapePostgrestValue } from '../../../lib/postgrestEscape'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -38,13 +39,14 @@ export async function GET(request) {
   }
 
   const term = `%${q}%`
+  const safeTerm = escapePostgrestValue(term)
   const results = new Map()
 
   // Match by earner name or email
   const { data: byEarner, error: earnerError } = await supabaseAdmin
     .from('certificates')
     .select(SELECT)
-    .or(`full_name.ilike.${term},email.ilike.${term}`, { foreignTable: 'earners' })
+    .or(`full_name.ilike.${safeTerm},email.ilike.${safeTerm}`, { foreignTable: 'earners' })
     .order('issue_date', { ascending: false })
     .limit(20)
 
