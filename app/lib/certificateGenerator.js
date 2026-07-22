@@ -16,6 +16,30 @@ import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { supabaseAdmin } from './supabaseAdmin'
 
+// The certificate template is plain HTML rendered by Puppeteer — any
+// user-supplied text (earner name, course title, signatory, institution
+// name) must be escaped before insertion, or it becomes HTML/script
+// injection into that render.
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+// When an institution hasn't uploaded a signature image, fall back to a
+// stylized abbreviation of the signatory's name — e.g. "Palmer Wayne"
+// becomes "P. Wayne" — rendered in italic serif in place of the image.
+function getSignatureFallbackText(name) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length <= 1) return parts[0] || ''
+  const first = parts[0]
+  const last = parts[parts.length - 1]
+  return `${first[0].toUpperCase()}. ${last}`
+}
+
 function formatDate(dateStr) {
   if (!dateStr) return null
   return new Date(dateStr).toLocaleDateString('en-NG', {
@@ -110,17 +134,18 @@ export async function generateCertificateForEarner({
   const displayExpiryDate = formatDate(expiryDate)
 
   const replacements = {
-    '{{EARNER_NAME}}': earnerName.trim(),
-    '{{COURSE_TITLE}}': courseTitle.trim(),
-    '{{INSTITUTION_NAME}}': institution.name,
+    '{{EARNER_NAME}}': escapeHtml(earnerName.trim()),
+    '{{COURSE_TITLE}}': escapeHtml(courseTitle.trim()),
+    '{{INSTITUTION_NAME}}': escapeHtml(institution.name),
     '{{INSTITUTION_LOGO}}': institution.logo_url || '',
     '{{ISSUE_DATE}}': displayIssueDate,
     '{{EXPIRY_DATE}}': displayExpiryDate || '',
-    '{{SIGNATORY_NAME}}': signatoryName.trim(),
-    '{{SIGNATORY_TITLE}}': signatoryTitle.trim(),
+    '{{SIGNATORY_NAME}}': escapeHtml(signatoryName.trim()),
+    '{{SIGNATORY_TITLE}}': escapeHtml(signatoryTitle.trim()),
     '{{CERT_ID}}': certId,
     '{{QR_DATA_URL}}': qrDataUrl,
     '{{SIGNATURE_URL}}': institution.signature_url || '',
+    '{{SIGNATURE_TEXT}}': institution.signature_url ? '' : escapeHtml(getSignatureFallbackText(signatoryName.trim())),
   }
 
   if (!displayExpiryDate) {
@@ -137,8 +162,10 @@ export async function generateCertificateForEarner({
 
   if (!institution.signature_url) {
     htmlTemplate = htmlTemplate.replace(/{{#if SIGNATURE_URL}}[\s\S]*?{{\/if}}/g, '')
+    htmlTemplate = htmlTemplate.replace('{{#if SIGNATURE_TEXT}}', '').replace('{{/if}}', '')
   } else {
     htmlTemplate = htmlTemplate.replace('{{#if SIGNATURE_URL}}', '').replace('{{/if}}', '')
+    htmlTemplate = htmlTemplate.replace(/{{#if SIGNATURE_TEXT}}[\s\S]*?{{\/if}}/g, '')
   }
 
   for (const [placeholder, value] of Object.entries(replacements)) {
