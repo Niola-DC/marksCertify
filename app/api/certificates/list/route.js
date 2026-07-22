@@ -8,10 +8,16 @@
 
 import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 import { requireAdmin } from '../../../lib/apiAuth'
+import { escapePostgrestValue } from '../../../lib/postgrestEscape'
 
+// earner_id is NOT NULL on certificates, so !inner never excludes a
+// legitimate row — it's required for the earner-name/email .or() filter
+// below to actually constrain results (a plain left-join embed doesn't
+// restrict top-level rows, only shapes the nested object per row).
 const SELECT = `
   cert_id, course_title, issue_date, expiry_date, status, pdf_url, verify_url, created_at,
-  earners ( full_name, email )
+  email_sent, email_sent_at, whatsapp_sent, whatsapp_sent_at,
+  earners!inner ( full_name, email, phone_number )
 `
 
 // Institutions cap out at 2,000 certs/month on the largest Stage-1 plan,
@@ -32,12 +38,13 @@ export async function GET(request) {
 
   if (q) {
     const term = `%${q}%`
+    const safeTerm = escapePostgrestValue(term)
 
     const { data: byCertOrCourse, error: e1 } = await supabaseAdmin
       .from('certificates')
       .select(SELECT)
       .eq('institution_id', institutionId)
-      .or(`cert_id.ilike.${term},course_title.ilike.${term}`)
+      .or(`cert_id.ilike.${safeTerm},course_title.ilike.${safeTerm}`)
       .order('created_at', { ascending: false })
       .limit(MAX_ROWS)
 
@@ -47,7 +54,7 @@ export async function GET(request) {
       .from('certificates')
       .select(SELECT + ', institution_id')
       .eq('institution_id', institutionId)
-      .or(`full_name.ilike.${term},email.ilike.${term}`, { foreignTable: 'earners' })
+      .or(`full_name.ilike.${safeTerm},email.ilike.${safeTerm}`, { foreignTable: 'earners' })
       .order('created_at', { ascending: false })
       .limit(MAX_ROWS)
 
@@ -86,6 +93,11 @@ export async function GET(request) {
       verifyUrl: c.verify_url,
       earnerName: c.earners?.full_name,
       earnerEmail: c.earners?.email,
+      earnerPhone: c.earners?.phone_number,
+      emailSent: c.email_sent,
+      emailSentAt: c.email_sent_at,
+      whatsappSent: c.whatsapp_sent,
+      whatsappSentAt: c.whatsapp_sent_at,
     })),
   })
 }
