@@ -6,12 +6,14 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams } from 'next/navigation'
-import { Search, Plus, MoreVertical, Printer, Ban, ShieldCheck, Upload } from 'lucide-react'
+import { Search, Plus, MoreVertical, Printer, Ban, ShieldCheck, Upload, Send, Mail, MessageCircle } from 'lucide-react'
 import { useSessionContext } from '../SessionContext'
 import GenerateCertModal from '../components/GenerateCertModal'
 import RevokeModal from '../components/RevokeModal'
 import BatchUploadModal from '../components/BatchUploadModal'
+import DistributeModal from '../components/DistributeModal'
 
 const PAGE_SIZE = 10
 
@@ -28,6 +30,7 @@ export default function CertificatesPage() {
   const [showGenerate, setShowGenerate] = useState(searchParams.get('generate') === '1')
   const [showBatchUpload, setShowBatchUpload] = useState(false)
   const [revokeTarget, setRevokeTarget] = useState(null)
+  const [distributeTarget, setDistributeTarget] = useState(null)
   const [openMenu, setOpenMenu] = useState(null)
 
   const debounceRef = useRef(null)
@@ -69,6 +72,11 @@ export default function CertificatesPage() {
 
   function handleRevoked() {
     setRevokeTarget(null)
+    fetchCertificates()
+  }
+
+  function handleDistributed() {
+    setDistributeTarget(null)
     fetchCertificates()
   }
 
@@ -121,21 +129,22 @@ export default function CertificatesPage() {
               <th className="px-6 py-3 font-medium">Course</th>
               <th className="px-6 py-3 font-medium">Issue Date</th>
               <th className="px-6 py-3 font-medium">Status</th>
+              <th className="px-6 py-3 font-medium">Delivery</th>
               <th className="px-6 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-6 py-10 text-center text-zinc-400">Loading…</td>
+                <td colSpan={7} className="px-6 py-10 text-center text-zinc-400">Loading…</td>
               </tr>
             ) : error ? (
               <tr>
-                <td colSpan={6} className="px-6 py-10 text-center text-red-600">{error}</td>
+                <td colSpan={7} className="px-6 py-10 text-center text-red-600">{error}</td>
               </tr>
             ) : data.certificates.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-10 text-center text-zinc-400">No certificates found.</td>
+                <td colSpan={7} className="px-6 py-10 text-center text-zinc-400">No certificates found.</td>
               </tr>
             ) : (
               data.certificates.map((cert) => (
@@ -151,20 +160,31 @@ export default function CertificatesPage() {
                   <td className="px-6 py-3.5">
                     <StatusBadge status={cert.status} />
                   </td>
-                  <td className="px-6 py-3.5 text-right relative">
+                  <td className="px-6 py-3.5">
+                    <DeliveryStatus cert={cert} />
+                  </td>
+                  <td className="px-6 py-3.5 text-right">
                     <button
-                      onClick={() => setOpenMenu(openMenu === cert.certId ? null : cert.certId)}
+                      onClick={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        setOpenMenu(openMenu?.certId === cert.certId ? null : { certId: cert.certId, rect })
+                      }}
                       className="p-1.5 rounded-md hover:bg-zinc-100 text-zinc-500"
                     >
                       <MoreVertical size={16} />
                     </button>
-                    {openMenu === cert.certId && (
+                    {openMenu?.certId === cert.certId && (
                       <RowMenu
                         cert={cert}
+                        anchorRect={openMenu.rect}
                         onClose={() => setOpenMenu(null)}
                         onRevoke={() => {
                           setOpenMenu(null)
                           setRevokeTarget(cert)
+                        }}
+                        onDistribute={() => {
+                          setOpenMenu(null)
+                          setDistributeTarget(cert)
                         }}
                       />
                     )}
@@ -211,6 +231,30 @@ export default function CertificatesPage() {
       {showBatchUpload && (
         <BatchUploadModal onClose={() => setShowBatchUpload(false)} onComplete={handleBatchComplete} />
       )}
+      {distributeTarget && (
+        <DistributeModal
+          cert={distributeTarget}
+          onClose={() => setDistributeTarget(null)}
+          onDistributed={handleDistributed}
+        />
+      )}
+    </div>
+  )
+}
+
+function DeliveryStatus({ cert }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Mail
+        size={14}
+        className={cert.emailSent ? 'text-green-600' : 'text-zinc-300'}
+        title={cert.emailSent ? `Emailed ${new Date(cert.emailSentAt).toLocaleDateString('en-NG')}` : 'Not emailed'}
+      />
+      <MessageCircle
+        size={14}
+        className={cert.whatsappSent ? 'text-green-600' : 'text-zinc-300'}
+        title={cert.whatsappSent ? `Sent via WhatsApp ${new Date(cert.whatsappSentAt).toLocaleDateString('en-NG')}` : 'Not sent via WhatsApp'}
+      />
     </div>
   )
 }
@@ -228,11 +272,50 @@ function StatusBadge({ status }) {
   )
 }
 
-function RowMenu({ cert, onClose, onRevoke }) {
-  return (
+// Rendered via a portal straight into <body>, positioned with `fixed`
+// coordinates computed from the trigger button's actual screen position.
+// The row lives inside a horizontally-scrolling table container, and a
+// plain `position: absolute` dropdown gets silently clipped by it — CSS
+// forces overflow-y to `auto` on any element with overflow-x set to
+// anything but `visible`, so the container was cropping the menu instead
+// of letting it float above the table.
+function RowMenu({ cert, anchorRect, onClose, onRevoke, onDistribute }) {
+  const MENU_WIDTH = 176 // w-44
+
+  useEffect(() => {
+    function handleScrollOrResize() {
+      onClose()
+    }
+    window.addEventListener('scroll', handleScrollOrResize, true)
+    window.addEventListener('resize', handleScrollOrResize)
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, true)
+      window.removeEventListener('resize', handleScrollOrResize)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const style = {
+    top: anchorRect.bottom + 4,
+    left: Math.max(8, anchorRect.right - MENU_WIDTH),
+  }
+
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-10" onClick={onClose} />
-      <div className="absolute right-6 top-full mt-1 z-20 w-44 rounded-md border border-zinc-200 bg-white shadow-lg py-1 text-left">
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div
+        style={style}
+        className="fixed z-50 w-44 rounded-md border border-zinc-200 bg-white shadow-lg py-1 text-left"
+      >
+        {cert.status !== 'revoked' && (
+          <button
+            onClick={onDistribute}
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+          >
+            <Send size={14} />
+            Distribute
+          </button>
+        )}
         <a
           href={cert.pdfUrl}
           target="_blank"
@@ -263,6 +346,7 @@ function RowMenu({ cert, onClose, onRevoke }) {
           </button>
         )}
       </div>
-    </>
+    </>,
+    document.body
   )
 }
