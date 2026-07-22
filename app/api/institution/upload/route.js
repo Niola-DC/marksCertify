@@ -9,15 +9,17 @@
 
 import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 import { requireAdmin } from '../../../lib/apiAuth'
+import { removeWhiteBackground } from '../../../lib/imageProcessing'
 
 const ALLOWED_TYPES = new Set(['logo', 'signature'])
 const MAX_SIZE_BYTES = 2 * 1024 * 1024 // 2MB
 
+// SVG is deliberately excluded — it can carry embedded <script>, a stored-XSS
+// vector if the file is ever opened directly rather than rendered in an <img>.
 const MIME_EXTENSIONS = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/webp': 'webp',
-  'image/svg+xml': 'svg',
 }
 
 export async function POST(request) {
@@ -45,15 +47,32 @@ export async function POST(request) {
 
   const ext = MIME_EXTENSIONS[file.type]
   if (!ext) {
-    return Response.json({ error: 'Supported formats: PNG, JPEG, WEBP, SVG.' }, { status: 400 })
+    return Response.json({ error: 'Supported formats: PNG, JPEG, WEBP.' }, { status: 400 })
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer())
-  const storagePath = `branding/${institutionId}/${type}.${ext}`
+  let buffer = Buffer.from(await file.arrayBuffer())
+  let outputExt = ext
+  let outputContentType = file.type
+
+  // Signatures get their white/light background stripped so they show up
+  // correctly against the certificate's dark background. Logos are left
+  // as uploaded — they may legitimately have a colored or white backdrop
+  // as part of the institution's branding.
+  if (type === 'signature') {
+    try {
+      buffer = await removeWhiteBackground(buffer)
+      outputExt = 'png'
+      outputContentType = 'image/png'
+    } catch (err) {
+      return Response.json({ error: 'Failed to process signature image.', detail: err.message }, { status: 500 })
+    }
+  }
+
+  const storagePath = `branding/${institutionId}/${type}.${outputExt}`
 
   const { error: uploadError } = await supabaseAdmin.storage
     .from('certificates')
-    .upload(storagePath, buffer, { contentType: file.type, upsert: true })
+    .upload(storagePath, buffer, { contentType: outputContentType, upsert: true })
 
   if (uploadError) {
     return Response.json({ error: 'Upload failed.', detail: uploadError.message }, { status: 500 })
