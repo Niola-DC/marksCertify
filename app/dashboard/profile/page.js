@@ -54,7 +54,7 @@ export default function ProfilePage() {
     })
       .then((res) => res.json())
       .then((json) => {
-        if (json.error) throw new Error(json.error)
+        if (json.error) throw new Error(json.detail ? `${json.error} ${json.detail}` : json.error)
         applyProfile(json.institution)
       })
       .catch((err) => setLoadError(err.message))
@@ -245,7 +245,7 @@ export default function ProfilePage() {
         <div>
           <h2 className="text-base font-semibold text-zinc-900">Branding</h2>
           <p className="text-xs text-zinc-400 mt-1">
-            Your signature is embedded on every certificate you issue. PNG, JPEG, WEBP, or SVG — under 2MB. A
+            Your signature is embedded on every certificate you issue. PNG, JPEG, or WEBP — under 2MB. A
             transparent PNG works best.
           </p>
         </div>
@@ -350,7 +350,7 @@ function ImageUploadTile({ label, icon: Icon, imageUrl, uploading, dark, onSelec
       >
         {imageUrl ? 'Replace' : 'Upload'}
       </button>
-      <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleChange} className="hidden" />
+      <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleChange} className="hidden" />
     </div>
   )
 }
