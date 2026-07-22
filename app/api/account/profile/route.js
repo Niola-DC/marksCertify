@@ -21,7 +21,10 @@ export async function GET(request) {
     .eq('id', auth.user.id)
     .single()
 
-  if (error || !adminUser) {
+  if (error) {
+    return Response.json({ error: 'Failed to load account.', detail: error.message }, { status: 500 })
+  }
+  if (!adminUser) {
     return Response.json({ error: 'Account not found.' }, { status: 404 })
   }
 
