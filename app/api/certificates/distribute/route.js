@@ -6,33 +6,28 @@
 //   - Email (Resend)
 //   - WhatsApp (Twilio)
 //   - Portal (already there — nothing to do)
+//
+// Email currently sends from Resend's shared sandbox address
+// (onboarding@resend.dev), which only delivers to the email
+// address on the Resend account itself — fine for testing, not
+// for real distribution. Swap RESEND_FROM once a domain is
+// verified in the Resend dashboard.
 // ============================================================
 
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '../../../lib/supabaseAdmin'
+import { requireAdmin } from '../../../lib/apiAuth'
 import { Resend } from 'resend'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-)
-
 const resend = new Resend(process.env.RESEND_API_KEY)
+const EMAIL_FROM = process.env.RESEND_FROM || 'MarksCertify <onboarding@resend.dev>'
 
 // ── POST /api/certificates/distribute ────────────────────────
 export async function POST(request) {
+  const auth = await requireAdmin(request)
+  if (auth instanceof Response) return auth
+  const { institutionId } = auth
+
   try {
-
-    // Auth check (same pattern as generate route)
-    const authHeader = request.headers.get('Authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return Response.json({ error: 'Unauthorised' }, { status: 401 })
-    }
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
-    if (authError || !user) {
-      return Response.json({ error: 'Invalid session.' }, { status: 401 })
-    }
-
     const { certId } = await request.json()
     if (!certId) {
       return Response.json({ error: 'certId is required.' }, { status: 400 })
@@ -42,15 +37,19 @@ export async function POST(request) {
     const { data: cert, error: certError } = await supabaseAdmin
       .from('certificates')
       .select(`
-        id, cert_id, course_title, issue_date, pdf_url, verify_url, status,
+        id, cert_id, course_title, issue_date, pdf_url, verify_url, status, institution_id,
         earners ( full_name, email, phone_number ),
         institutions ( id, name )
       `)
-      .eq('cert_id', certId)
+      .eq('cert_id', certId.toUpperCase())
       .single()
 
     if (certError || !cert) {
       return Response.json({ error: 'Certificate not found.' }, { status: 404 })
+    }
+
+    if (cert.institution_id !== institutionId) {
+      return Response.json({ error: 'Forbidden.' }, { status: 403 })
     }
 
     if (cert.status === 'revoked') {
@@ -62,8 +61,8 @@ export async function POST(request) {
     // ── Send Email ────────────────────────────────────────
     if (cert.earners.email) {
       try {
-        await resend.emails.send({
-          from: `${cert.institutions.name} via MarksCertify <certs@markscertify.com>`,
+        const { error: sendError } = await resend.emails.send({
+          from: EMAIL_FROM,
           to: cert.earners.email,
           subject: `Your Certificate — ${cert.course_title}`,
           html: buildEmailTemplate({
@@ -77,7 +76,8 @@ export async function POST(request) {
           })
         })
 
-        // Log delivery in database
+        if (sendError) throw new Error(sendError.message)
+
         await supabaseAdmin
           .from('certificates')
           .update({ email_sent: true, email_sent_at: new Date().toISOString() })
@@ -87,6 +87,7 @@ export async function POST(request) {
       } catch (emailErr) {
         console.error('[distribute] Email failed:', emailErr)
         results.email = 'failed'
+        results.emailError = emailErr.message
       }
     } else {
       results.email = 'skipped — no email address'
@@ -95,54 +96,64 @@ export async function POST(request) {
     // ── Send WhatsApp ─────────────────────────────────────
     // Only on Growth plan and above (enforced here)
     if (cert.earners.phone_number) {
-      try {
-        const whatsappMessage = buildWhatsAppMessage({
-          earnerName:      cert.earners.full_name,
-          courseTitle:     cert.course_title,
-          institutionName: cert.institutions.name,
-          pdfUrl:          cert.pdf_url,
-          verifyUrl:       cert.verify_url,
-          certId:          cert.cert_id
-        })
+      const twilioSid  = process.env.TWILIO_ACCOUNT_SID
+      const twilioAuth = process.env.TWILIO_AUTH_TOKEN
+      const twilioFrom = process.env.TWILIO_WHATSAPP_FROM  // "whatsapp:+14155238886"
 
-        // Twilio WhatsApp via fetch (avoids needing twilio npm package)
-        const twilioSid  = process.env.TWILIO_ACCOUNT_SID
-        const twilioAuth = process.env.TWILIO_AUTH_TOKEN
-        const twilioFrom = process.env.TWILIO_WHATSAPP_FROM  // "whatsapp:+14155238886"
+      if (!twilioSid || !twilioAuth || !twilioFrom) {
+        results.whatsapp = 'skipped — WhatsApp not configured'
+      } else {
+        try {
+          const whatsappMessage = buildWhatsAppMessage({
+            earnerName:      cert.earners.full_name,
+            courseTitle:     cert.course_title,
+            institutionName: cert.institutions.name,
+            pdfUrl:          cert.pdf_url,
+            verifyUrl:       cert.verify_url,
+            certId:          cert.cert_id
+          })
 
-        const phone = cert.earners.phone_number.replace(/\D/g, '') // strip non-digits
-        const toNumber = `whatsapp:+${phone.startsWith('234') ? phone : '234' + phone.replace(/^0/, '')}`
+          // Numbers are expected in local Nigerian format (e.g. "08012345678")
+          // by default. A leading "+" is treated as "already international"
+          // so numbers from other countries aren't mangled with a 234 prefix.
+          const rawPhone = cert.earners.phone_number.trim()
+          const digits = rawPhone.replace(/\D/g, '')
+          const isAlreadyInternational = rawPhone.startsWith('+') || digits.startsWith('234')
+          const toNumber = `whatsapp:+${isAlreadyInternational ? digits : '234' + digits.replace(/^0/, '')}`
 
-        const twilioResponse = await fetch(
-          `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'Authorization': 'Basic ' + Buffer.from(`${twilioSid}:${twilioAuth}`).toString('base64')
-            },
-            body: new URLSearchParams({
-              From: twilioFrom,
-              To: toNumber,
-              Body: whatsappMessage
-            })
+          const twilioResponse = await fetch(
+            `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': 'Basic ' + Buffer.from(`${twilioSid}:${twilioAuth}`).toString('base64')
+              },
+              body: new URLSearchParams({
+                From: twilioFrom,
+                To: toNumber,
+                Body: whatsappMessage
+              })
+            }
+          )
+
+          if (twilioResponse.ok) {
+            await supabaseAdmin
+              .from('certificates')
+              .update({ whatsapp_sent: true, whatsapp_sent_at: new Date().toISOString() })
+              .eq('id', cert.id)
+            results.whatsapp = 'sent'
+          } else {
+            const errData = await twilioResponse.json()
+            console.error('[distribute] WhatsApp failed:', errData)
+            results.whatsapp = 'failed'
+            results.whatsappError = errData.message
           }
-        )
-
-        if (twilioResponse.ok) {
-          await supabaseAdmin
-            .from('certificates')
-            .update({ whatsapp_sent: true, whatsapp_sent_at: new Date().toISOString() })
-            .eq('id', cert.id)
-          results.whatsapp = 'sent'
-        } else {
-          const errData = await twilioResponse.json()
-          console.error('[distribute] WhatsApp failed:', errData)
+        } catch (waErr) {
+          console.error('[distribute] WhatsApp error:', waErr)
           results.whatsapp = 'failed'
+          results.whatsappError = waErr.message
         }
-      } catch (waErr) {
-        console.error('[distribute] WhatsApp error:', waErr)
-        results.whatsapp = 'failed'
       }
     } else {
       results.whatsapp = 'skipped — no phone number'
