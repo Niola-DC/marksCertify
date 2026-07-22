@@ -10,7 +10,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Pencil, Trash2, Upload } from 'lucide-react'
 import { useSessionContext } from '../SessionContext'
 import { supabase } from '../../lib/supabaseClient'
 
@@ -49,7 +49,7 @@ export default function SettingsPage() {
     })
       .then((res) => res.json())
       .then((json) => {
-        if (json.error) throw new Error(json.error)
+        if (json.error) throw new Error(json.detail ? `${json.error} ${json.detail}` : json.error)
         setAccount(json.account)
         setPhoneNumber(json.account.phoneNumber || '')
       })
@@ -188,37 +188,60 @@ export default function SettingsPage() {
         <h2 className="text-base font-semibold text-zinc-900">Account Settings</h2>
 
         <div className="flex items-center gap-4">
-          <div className="h-16 w-16 shrink-0 rounded-full bg-zinc-100 flex items-center justify-center overflow-hidden">
+          <div
+            className="group relative h-16 w-16 shrink-0 rounded-full bg-zinc-100 overflow-hidden cursor-pointer"
+            onClick={() => {
+              if (!account.avatarUrl && !avatarUploading) avatarInputRef.current?.click()
+            }}
+          >
             {avatarUploading ? (
-              <Loader2 size={18} className="animate-spin text-zinc-400" />
+              <div className="h-full w-full flex items-center justify-center">
+                <Loader2 size={18} className="animate-spin text-zinc-400" />
+              </div>
             ) : account.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={account.avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={account.avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    title="Change photo"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      avatarInputRef.current?.click()
+                    }}
+                    className="text-white hover:scale-110 transition-transform"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    title="Remove photo"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleAvatarRemove()
+                    }}
+                    className="text-white hover:scale-110 transition-transform"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </>
             ) : (
-              <span className="text-lg font-semibold text-zinc-400">
-                {account.fullName?.[0]?.toUpperCase() || account.email?.[0]?.toUpperCase() || '?'}
-              </span>
+              <>
+                <div className="h-full w-full flex items-center justify-center">
+                  <span className="text-lg font-semibold text-zinc-400">
+                    {account.fullName?.[0]?.toUpperCase() || account.email?.[0]?.toUpperCase() || '?'}
+                  </span>
+                </div>
+                <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-colors">
+                  <Upload size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </>
             )}
           </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => avatarInputRef.current?.click()}
-              disabled={avatarUploading}
-              className="rounded-md bg-[#B8962E]/10 px-4 py-2 text-sm font-medium text-[#B8962E] disabled:opacity-50"
-            >
-              Change Photo
-            </button>
-            {account.avatarUrl && (
-              <button
-                type="button"
-                onClick={handleAvatarRemove}
-                disabled={avatarUploading}
-                className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-600 disabled:opacity-50"
-              >
-                Remove
-              </button>
-            )}
+          <div className="text-xs text-zinc-400">
+            {account.avatarUrl ? 'Hover your photo to change or remove it.' : 'Click the circle to upload a photo.'}
           </div>
           <input
             ref={avatarInputRef}
