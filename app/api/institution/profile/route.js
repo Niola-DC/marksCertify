@@ -27,7 +27,10 @@ export async function GET(request) {
     .eq('id', auth.institutionId)
     .single()
 
-  if (error || !institution) {
+  if (error) {
+    return Response.json({ error: 'Failed to load institution.', detail: error.message }, { status: 500 })
+  }
+  if (!institution) {
     return Response.json({ error: 'Institution not found.' }, { status: 404 })
   }
 
