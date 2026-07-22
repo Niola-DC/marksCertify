@@ -89,7 +89,7 @@ export default function DashboardShell({ children }) {
 
   return (
     <SessionContext.Provider value={{ session, institution }}>
-      <div className="min-h-screen flex bg-[#F7F7F8]">
+      <div className="h-screen flex bg-[#F7F7F8] overflow-hidden">
         {/* Mobile backdrop */}
         {sidebarOpen && (
           <div
@@ -98,9 +98,9 @@ export default function DashboardShell({ children }) {
           />
         )}
 
-        {/* Sidebar — off-canvas drawer on mobile, static on md+ */}
+        {/* Sidebar — off-canvas drawer on mobile, pinned full-height on md+ */}
         <aside
-          className={`fixed inset-y-0 left-0 z-40 w-64 shrink-0 border-r border-zinc-200 bg-white flex flex-col px-4 py-6 transform transition-transform duration-200 md:static md:translate-x-0 md:z-auto ${
+          className={`fixed inset-y-0 left-0 z-40 w-64 shrink-0 border-r border-zinc-200 bg-white flex flex-col px-4 py-6 transform transition-transform duration-200 md:static md:h-screen md:translate-x-0 md:z-auto ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
@@ -149,8 +149,8 @@ export default function DashboardShell({ children }) {
         </aside>
 
         {/* Main content */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 sm:px-8 py-4">
+        <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+          <header className="shrink-0 flex items-center justify-between border-b border-zinc-200 bg-white px-4 sm:px-8 py-4">
             <div className="flex items-center gap-3">
               <button className="md:hidden text-zinc-500" onClick={() => setSidebarOpen(true)}>
                 <Menu size={22} />
@@ -172,7 +172,7 @@ export default function DashboardShell({ children }) {
             )}
           </header>
 
-          <main className="flex-1 p-4 sm:p-6 md:p-8">{children}</main>
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">{children}</main>
         </div>
       </div>
 
