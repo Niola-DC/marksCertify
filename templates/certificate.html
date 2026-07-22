@@ -183,6 +183,15 @@
           filter: brightness(0) invert(1);   /* makes dark signatures visible on black bg */
         }
 
+        /* ── Fallback signature — used when no image was uploaded ─── */
+        .signature-text {
+          font-family: 'Georgia', 'Times New Roman', serif;
+          font-style: italic;
+          font-size: 13pt;
+          color: #FFFFFF;
+          margin-bottom: 1.5mm;
+        }
+
         .signature-line {
           width: 40mm;
           height: 0.5px;
@@ -308,6 +317,9 @@
         <div class="signature-block">
             {{#if SIGNATURE_URL}}
             <img class="signature-image" src="{{SIGNATURE_URL}}" alt="Signature" />
+            {{/if}}
+            {{#if SIGNATURE_TEXT}}
+            <div class="signature-text">{{SIGNATURE_TEXT}}</div>
             {{/if}}
             <div class="signature-line"></div>
             <div class="signatory-name">{{SIGNATORY_NAME}}</div>
