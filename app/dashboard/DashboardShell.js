@@ -2,6 +2,10 @@
 // MARKSCERTIFY — Dashboard Shell
 // File: /app/dashboard/DashboardShell.js
 //
+// Sidebar + topbar chrome for every /dashboard/* route. Guards
+// the route (redirects to /login if there's no session) and
+// exposes the session + institution info to child pages via context.
+// Sidebar collapses to an off-canvas drawer below the md breakpoint.
 // ============================================================
 
 'use client'
