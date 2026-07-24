@@ -1,5 +1,4 @@
 -- MarksCertify Stage 1 schema
--- Run this in the Supabase SQL editor (Dashboard -> SQL Editor -> New query -> Run)
 
 create extension if not exists pgcrypto;
 

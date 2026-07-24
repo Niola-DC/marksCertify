@@ -1,5 +1,4 @@
 -- MarksCertify — institution profile fields
--- Run this in the Supabase SQL editor (Dashboard -> SQL Editor -> New query -> Run)
 
 alter table institutions
   add column if not exists location text,
