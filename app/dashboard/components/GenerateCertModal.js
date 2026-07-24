@@ -38,7 +38,6 @@ export default function GenerateCertModal({ onClose, onGenerated }) {
         }))
       })
       .catch(() => {})
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function update(field) {
