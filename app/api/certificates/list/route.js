@@ -24,6 +24,19 @@ const SELECT = `
 // so fetching-then-paginating in memory keeps this simple and correct.
 const MAX_ROWS = 2000
 
+const VALID_STATUSES = new Set(['active', 'revoked'])
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+// Applies the status/date filters shared by every query path below. Kept
+// as one function so a filter can't accidentally be added to one query
+// branch (e.g. the search-by-earner path) and forgotten on another.
+function applyFilters(query, { status, dateFrom, dateTo }) {
+  if (status) query = query.eq('status', status)
+  if (dateFrom) query = query.gte('issue_date', dateFrom)
+  if (dateTo) query = query.lte('issue_date', dateTo)
+  return query
+}
+
 export async function GET(request) {
   const auth = await requireAdmin(request)
   if (auth instanceof Response) return auth
@@ -34,27 +47,41 @@ export async function GET(request) {
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
   const pageSize = Math.min(50, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10)))
 
+  const statusParam = searchParams.get('status')?.trim().toLowerCase()
+  const status = VALID_STATUSES.has(statusParam) ? statusParam : null
+  const dateFromParam = searchParams.get('dateFrom')?.trim()
+  const dateFrom = dateFromParam && ISO_DATE.test(dateFromParam) ? dateFromParam : null
+  const dateToParam = searchParams.get('dateTo')?.trim()
+  const dateTo = dateToParam && ISO_DATE.test(dateToParam) ? dateToParam : null
+  const filters = { status, dateFrom, dateTo }
+
   let rows = []
 
   if (q) {
     const term = `%${q}%`
     const safeTerm = escapePostgrestValue(term)
 
-    const { data: byCertOrCourse, error: e1 } = await supabaseAdmin
-      .from('certificates')
-      .select(SELECT)
-      .eq('institution_id', institutionId)
-      .or(`cert_id.ilike.${safeTerm},course_title.ilike.${safeTerm}`)
+    const { data: byCertOrCourse, error: e1 } = await applyFilters(
+      supabaseAdmin
+        .from('certificates')
+        .select(SELECT)
+        .eq('institution_id', institutionId)
+        .or(`cert_id.ilike.${safeTerm},course_title.ilike.${safeTerm}`),
+      filters
+    )
       .order('created_at', { ascending: false })
       .limit(MAX_ROWS)
 
     if (e1) return Response.json({ error: 'Search failed.', detail: e1.message }, { status: 500 })
 
-    const { data: byEarner, error: e2 } = await supabaseAdmin
-      .from('certificates')
-      .select(SELECT + ', institution_id')
-      .eq('institution_id', institutionId)
-      .or(`full_name.ilike.${safeTerm},email.ilike.${safeTerm}`, { foreignTable: 'earners' })
+    const { data: byEarner, error: e2 } = await applyFilters(
+      supabaseAdmin
+        .from('certificates')
+        .select(SELECT + ', institution_id')
+        .eq('institution_id', institutionId)
+        .or(`full_name.ilike.${safeTerm},email.ilike.${safeTerm}`, { foreignTable: 'earners' }),
+      filters
+    )
       .order('created_at', { ascending: false })
       .limit(MAX_ROWS)
 
@@ -64,10 +91,10 @@ export async function GET(request) {
     for (const cert of [...(byCertOrCourse || []), ...(byEarner || [])]) merged.set(cert.cert_id, cert)
     rows = Array.from(merged.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   } else {
-    const { data, error } = await supabaseAdmin
-      .from('certificates')
-      .select(SELECT)
-      .eq('institution_id', institutionId)
+    const { data, error } = await applyFilters(
+      supabaseAdmin.from('certificates').select(SELECT).eq('institution_id', institutionId),
+      filters
+    )
       .order('created_at', { ascending: false })
       .limit(MAX_ROWS)
 
