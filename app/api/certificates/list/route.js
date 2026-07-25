@@ -61,30 +61,34 @@ export async function GET(request) {
     const term = `%${q}%`
     const safeTerm = escapePostgrestValue(term)
 
-    const { data: byCertOrCourse, error: e1 } = await applyFilters(
-      supabaseAdmin
-        .from('certificates')
-        .select(SELECT)
-        .eq('institution_id', institutionId)
-        .or(`cert_id.ilike.${safeTerm},course_title.ilike.${safeTerm}`),
-      filters
-    )
-      .order('created_at', { ascending: false })
-      .limit(MAX_ROWS)
+    const [
+      { data: byCertOrCourse, error: e1 },
+      { data: byEarner, error: e2 },
+    ] = await Promise.all([
+      applyFilters(
+        supabaseAdmin
+          .from('certificates')
+          .select(SELECT)
+          .eq('institution_id', institutionId)
+          .or(`cert_id.ilike.${safeTerm},course_title.ilike.${safeTerm}`),
+        filters
+      )
+        .order('created_at', { ascending: false })
+        .limit(MAX_ROWS),
+
+      applyFilters(
+        supabaseAdmin
+          .from('certificates')
+          .select(SELECT + ', institution_id')
+          .eq('institution_id', institutionId)
+          .or(`full_name.ilike.${safeTerm},email.ilike.${safeTerm}`, { foreignTable: 'earners' }),
+        filters
+      )
+        .order('created_at', { ascending: false })
+        .limit(MAX_ROWS),
+    ])
 
     if (e1) return Response.json({ error: 'Search failed.', detail: e1.message }, { status: 500 })
-
-    const { data: byEarner, error: e2 } = await applyFilters(
-      supabaseAdmin
-        .from('certificates')
-        .select(SELECT + ', institution_id')
-        .eq('institution_id', institutionId)
-        .or(`full_name.ilike.${safeTerm},email.ilike.${safeTerm}`, { foreignTable: 'earners' }),
-      filters
-    )
-      .order('created_at', { ascending: false })
-      .limit(MAX_ROWS)
-
     if (e2) return Response.json({ error: 'Search failed.', detail: e2.message }, { status: 500 })
 
     const merged = new Map()
