@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams } from 'next/navigation'
-import { Search, Plus, MoreVertical, Printer, Ban, ShieldCheck, Upload, Send, Mail, MessageCircle } from 'lucide-react'
+import { Search, Plus, MoreVertical, Printer, Ban, ShieldCheck, Upload, Send, Mail, MessageCircle, X } from 'lucide-react'
 import { useSessionContext } from '../SessionContext'
 import GenerateCertModal from '../components/GenerateCertModal'
 import RevokeModal from '../components/RevokeModal'
@@ -22,6 +22,9 @@ export default function CertificatesPage() {
   const searchParams = useSearchParams()
 
   const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState({ certificates: [], total: 0 })
   const [loading, setLoading] = useState(true)
@@ -40,6 +43,9 @@ export default function CertificatesPage() {
     setError(null)
     const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) })
     if (query.trim()) params.set('q', query.trim())
+    if (statusFilter) params.set('status', statusFilter)
+    if (dateFrom) params.set('dateFrom', dateFrom)
+    if (dateTo) params.set('dateTo', dateTo)
 
     fetch(`/api/certificates/list?${params.toString()}`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
@@ -51,7 +57,7 @@ export default function CertificatesPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [page, query, session])
+  }, [page, query, statusFilter, dateFrom, dateTo, session])
 
   useEffect(() => {
     fetchCertificates()
@@ -62,6 +68,30 @@ export default function CertificatesPage() {
     setQuery(value)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => setPage(1), 400)
+  }
+
+  function handleStatusFilterChange(e) {
+    setStatusFilter(e.target.value)
+    setPage(1)
+  }
+
+  function handleDateFromChange(e) {
+    setDateFrom(e.target.value)
+    setPage(1)
+  }
+
+  function handleDateToChange(e) {
+    setDateTo(e.target.value)
+    setPage(1)
+  }
+
+  const hasActiveFilters = Boolean(statusFilter || dateFrom || dateTo)
+
+  function clearFilters() {
+    setStatusFilter('')
+    setDateFrom('')
+    setDateTo('')
+    setPage(1)
   }
 
   function handleGenerated() {
@@ -117,6 +147,53 @@ export default function CertificatesPage() {
             <span className="whitespace-nowrap">Add Certificate</span>
           </button>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-sm text-zinc-600">
+          Status
+          <select
+            value={statusFilter}
+            onChange={handleStatusFilterChange}
+            className="rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#B8962E]"
+          >
+            <option value="">All</option>
+            <option value="active">Active</option>
+            <option value="revoked">Revoked</option>
+          </select>
+        </label>
+
+        <label className="flex items-center gap-2 text-sm text-zinc-600">
+          From
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={handleDateFromChange}
+            max={dateTo || undefined}
+            className="rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#B8962E]"
+          />
+        </label>
+
+        <label className="flex items-center gap-2 text-sm text-zinc-600">
+          To
+          <input
+            type="date"
+            value={dateTo}
+            onChange={handleDateToChange}
+            min={dateFrom || undefined}
+            className="rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#B8962E]"
+          />
+        </label>
+
+        {hasActiveFilters && (
+          <button
+            onClick={clearFilters}
+            className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700"
+          >
+            <X size={14} />
+            Clear filters
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-zinc-200">
