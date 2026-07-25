@@ -149,13 +149,13 @@ export default function CertificatesPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-sm text-zinc-600">
+      <div className="grid grid-cols-2 items-center gap-3 sm:flex sm:flex-wrap">
+        <label className="col-start-1 row-start-1 flex flex-col gap-1 text-sm text-zinc-600 sm:flex-row sm:items-center sm:gap-2">
           Status
           <select
             value={statusFilter}
             onChange={handleStatusFilterChange}
-            className="rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#B8962E]"
+            className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#B8962E] sm:w-auto"
           >
             <option value="">All</option>
             <option value="active">Active</option>
@@ -163,32 +163,32 @@ export default function CertificatesPage() {
           </select>
         </label>
 
-        <label className="flex items-center gap-2 text-sm text-zinc-600">
+        <label className="col-start-2 row-start-1 flex flex-col gap-1 text-sm text-zinc-600 sm:flex-row sm:items-center sm:gap-2">
           From
           <input
             type="date"
             value={dateFrom}
             onChange={handleDateFromChange}
             max={dateTo || undefined}
-            className="rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#B8962E]"
+            className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#B8962E] sm:w-auto"
           />
         </label>
 
-        <label className="flex items-center gap-2 text-sm text-zinc-600">
+        <label className="col-start-2 row-start-2 flex flex-col gap-1 text-sm text-zinc-600 sm:flex-row sm:items-center sm:gap-2">
           To
           <input
             type="date"
             value={dateTo}
             onChange={handleDateToChange}
             min={dateFrom || undefined}
-            className="rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#B8962E]"
+            className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#B8962E] sm:w-auto"
           />
         </label>
 
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
-            className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700"
+            className="col-start-1 row-start-2 flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700 justify-self-start"
           >
             <X size={14} />
             Clear filters
