@@ -152,7 +152,7 @@ function ResultCard({ cert }) {
           <span>{cert.institutionName}</span>
           <span>
             {new Date(cert.issueDate).toLocaleDateString('en-NG', {
-              day: 'numeric', month: 'short', year: 'numeric',
+              day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
             })}
           </span>
         </div>

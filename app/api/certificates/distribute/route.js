@@ -171,7 +171,7 @@ export async function POST(request) {
 // ── Email HTML template ───────────────────────────────────────
 function buildEmailTemplate({ earnerName, courseTitle, institutionName, issueDate, pdfUrl, verifyUrl, certId }) {
   const formattedDate = new Date(issueDate).toLocaleDateString('en-NG', {
-    day: 'numeric', month: 'long', year: 'numeric'
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC'
   })
 
   return `

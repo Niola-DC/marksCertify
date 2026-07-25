@@ -100,7 +100,7 @@ export default function VerifyPage() {
                 <p style={styles.label}>Issued</p>
                 <p style={styles.dateValue}>
                   {data?.issueDate && new Date(data.issueDate).toLocaleDateString('en-NG', {
-                    day: 'numeric', month: 'long', year: 'numeric'
+                    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC'
                   })}
                 </p>
               </div>
@@ -109,7 +109,7 @@ export default function VerifyPage() {
                   <p style={styles.label}>Expires</p>
                   <p style={styles.dateValue}>
                     {new Date(data.expiryDate).toLocaleDateString('en-NG', {
-                      day: 'numeric', month: 'long', year: 'numeric'
+                      day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC'
                     })}
                   </p>
                 </div>
