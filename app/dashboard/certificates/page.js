@@ -231,7 +231,7 @@ export default function CertificatesPage() {
                   <td className="px-6 py-3.5 text-zinc-600">{cert.courseTitle}</td>
                   <td className="px-6 py-3.5 text-zinc-600">
                     {new Date(cert.issueDate).toLocaleDateString('en-NG', {
-                      day: 'numeric', month: 'short', year: 'numeric',
+                      day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
                     })}
                   </td>
                   <td className="px-6 py-3.5">
