@@ -10,10 +10,10 @@
 
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, FileBadge2, Building2, Settings, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, FileBadge2, Building2, Settings, LogOut, Menu, X, WifiOff } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { SessionContext } from './SessionContext'
 import ConfirmModal from './components/ConfirmModal'
@@ -25,6 +25,11 @@ const NAV_ITEMS = [
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]
 
+// An outage longer than this means the session/token may have gone stale
+// while offline (or the user's laptop slept) — safer to force a clean
+// re-login than to silently resume on state that might no longer be valid.
+const STALE_OUTAGE_MS = 30 * 1000
+
 export default function DashboardShell({ children }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -34,6 +39,8 @@ export default function DashboardShell({ children }) {
   const [institution, setInstitution] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const [offline, setOffline] = useState(false)
+  const offlineSinceRef = useRef(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -46,8 +53,12 @@ export default function DashboardShell({ children }) {
     })
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      // A dropped connection can make Supabase's background token refresh
+      // fail and briefly report no session — that's a connectivity problem,
+      // not a real sign-out, and the offline toast already covers it. Only
+      // treat it as a real sign-out once we know we're actually online.
       if (!newSession) {
-        router.replace('/login')
+        if (!offlineSinceRef.current) router.replace('/login')
       } else {
         setSession(newSession)
       }
@@ -55,6 +66,33 @@ export default function DashboardShell({ children }) {
 
     return () => listener.subscription.unsubscribe()
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Floating network-status toast: shows the moment the browser goes
+  // offline instead of letting stale/failed requests surface a confusing
+  // "Invalid session" error. A brief blip just clears the toast on
+  // reconnect and leaves whatever the user was doing untouched; an outage
+  // longer than STALE_OUTAGE_MS forces a clean reload into /login instead,
+  // since the session may no longer be trustworthy by then.
+  useEffect(() => {
+    function handleOffline() {
+      offlineSinceRef.current = Date.now()
+      setOffline(true)
+    }
+    function handleOnline() {
+      const outageMs = offlineSinceRef.current ? Date.now() - offlineSinceRef.current : 0
+      offlineSinceRef.current = null
+      setOffline(false)
+      if (outageMs > STALE_OUTAGE_MS) {
+        window.location.href = '/login'
+      }
+    }
+    window.addEventListener('offline', handleOffline)
+    window.addEventListener('online', handleOnline)
+    return () => {
+      window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('online', handleOnline)
+    }
   }, [])
 
   useEffect(() => {
@@ -185,6 +223,13 @@ export default function DashboardShell({ children }) {
           onCancel={() => setShowLogoutConfirm(false)}
           onConfirm={handleLogout}
         />
+      )}
+
+      {offline && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 rounded-full bg-zinc-900 px-4 py-3 text-sm text-white shadow-lg">
+          <WifiOff size={16} className="shrink-0 text-red-400" />
+          Network connection lost. Try connecting to a network.
+        </div>
       )}
     </SessionContext.Provider>
   )
