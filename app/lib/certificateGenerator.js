@@ -223,7 +223,7 @@ export async function generateCertificateForEarner({
   if (cohortId) {
     await supabaseAdmin
       .from('cohort_members')
-      .update({ status: 'completed', cert_id: certRecord.id })
+      .update({ status: 'completed', cert_id: certRecord.id, completed_at: new Date().toISOString() })
       .eq('cohort_id', cohortId)
       .eq('earner_id', earnerId)
   }
