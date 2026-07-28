@@ -40,19 +40,33 @@ export async function requireAdmin(request) {
     return cached.result
   }
 
-  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
-  if (authError || !user) {
-    return Response.json({ error: 'Invalid session. Please log in again.' }, { status: 401 })
-  }
+  // auth.getUser() and the admin_users lookup both make a real network call
+  // to Supabase — a connectivity blip on the server throws here rather than
+  // returning an { error } field, and previously that propagated as an
+  // unhandled exception (an HTML 500 page instead of JSON, breaking the
+  // client's res.json() parsing). Treat that case as "temporarily
+  // unavailable," not "your session is invalid" — those are different
+  // problems with different fixes.
+  let user, adminRecord
+  try {
+    const authResult = await supabaseAdmin.auth.getUser(token)
+    if (authResult.error || !authResult.data.user) {
+      return Response.json({ error: 'Invalid session. Please log in again.' }, { status: 401 })
+    }
+    user = authResult.data.user
 
-  const { data: adminRecord, error: adminError } = await supabaseAdmin
-    .from('admin_users')
-    .select('institution_id, role')
-    .eq('id', user.id)
-    .single()
+    const adminResult = await supabaseAdmin
+      .from('admin_users')
+      .select('institution_id, role')
+      .eq('id', user.id)
+      .single()
 
-  if (adminError || !adminRecord) {
-    return Response.json({ error: 'Admin profile not found.' }, { status: 403 })
+    if (adminResult.error || !adminResult.data) {
+      return Response.json({ error: 'Admin profile not found.' }, { status: 403 })
+    }
+    adminRecord = adminResult.data
+  } catch {
+    return Response.json({ error: 'Temporarily unable to reach the server. Please try again.' }, { status: 503 })
   }
 
   const result = { user, institutionId: adminRecord.institution_id, role: adminRecord.role }
