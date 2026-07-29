@@ -154,7 +154,7 @@ export async function PATCH(request, { params }) {
     .select(`
       id, status, completed_at,
       earners ( full_name, email, phone_number ),
-      certificates ( cert_id, pdf_url, verify_url, email_sent, whatsapp_sent )
+      certificates ( cert_id, pdf_url, verify_url, email_sent, whatsapp_sent, email_error, whatsapp_error )
     `)
     .eq('id', memberId)
     .single()
@@ -172,6 +172,8 @@ export async function PATCH(request, { params }) {
       verifyUrl: updatedMember.certificates?.verify_url || null,
       emailSent: updatedMember.certificates?.email_sent || false,
       whatsappSent: updatedMember.certificates?.whatsapp_sent || false,
+      emailError: updatedMember.certificates?.email_error || null,
+      whatsappError: updatedMember.certificates?.whatsapp_error || null,
     },
     certificate,
     distribution,
