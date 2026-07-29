@@ -58,3 +58,15 @@ create policy "admins read own cohort members" on cohort_members
   for select using (
     institution_id in (select institution_id from admin_users where admin_users.id = auth.uid())
   );
+
+
+
+
+
+
+Edit/delete a cohort	Not built — wasn't explicit in the PRD spec, but there's currently no way to fix a typo in a cohort name/program after creation
+
+
+
+Score-based completion threshold, out of scope as Assessment Layer is skipped. Allow admins to add payment or score as completion threshold
+
