@@ -89,7 +89,7 @@ export default function CohortDetailPage() {
 
   async function handleRetryDelivery(member) {
     setRetryingMemberId(member.memberId)
-    setRowError(null)
+    setRetryError(null)
     try {
       const res = await fetch('/api/certificates/distribute', {
         method: 'POST',
@@ -103,7 +103,7 @@ export default function CohortDetailPage() {
       if (!res.ok) throw new Error(json.error || 'Retry failed.')
       fetchCohort()
     } catch (err) {
-      setRowError({ memberId: member.memberId, message: err.message })
+      setRetryError({ memberId: member.memberId, message: err.message })
     } finally {
       setRetryingMemberId(null)
     }
