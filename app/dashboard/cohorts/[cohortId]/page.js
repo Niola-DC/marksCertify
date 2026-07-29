@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Users, CheckCircle2, FileBadge2, Mail, MessageCircle, UserPlus, Printer } from 'lucide-react'
+import { ArrowLeft, Users, CheckCircle2, FileBadge2, Mail, MessageCircle, UserPlus, Printer, AlertTriangle, RotateCw } from 'lucide-react'
 import { useSessionContext } from '../../SessionContext'
 import AddCohortMembersModal from '../../components/AddCohortMembersModal'
 
@@ -36,6 +36,7 @@ export default function CohortDetailPage() {
   // a few seconds, so each row needs its own independent loading state.
   const [pendingMemberId, setPendingMemberId] = useState(null)
   const [rowError, setRowError] = useState(null)
+  const [retryingMemberId, setRetryingMemberId] = useState(null)
 
   const fetchCohort = useCallback(() => {
     setLoading(true)
@@ -85,6 +86,28 @@ export default function CohortDetailPage() {
     fetchCohort()
   }
 
+  async function handleRetryDelivery(member) {
+    setRetryingMemberId(member.memberId)
+    setRowError(null)
+    try {
+      const res = await fetch('/api/certificates/distribute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ certId: member.certId }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Retry failed.')
+      fetchCohort()
+    } catch (err) {
+      setRowError({ memberId: member.memberId, message: err.message })
+    } finally {
+      setRetryingMemberId(null)
+    }
+  }
+
   if (loading) return <p className="py-10 text-center text-sm text-zinc-400">Loading…</p>
   if (error) return <p className="py-10 text-center text-sm text-red-600">{error}</p>
   if (!cohort) return null
@@ -123,7 +146,7 @@ export default function CohortDetailPage() {
         <StatCard icon={Users} label="Members" value={stats.memberCount} />
         <StatCard icon={CheckCircle2} label="Completion Rate" value={`${stats.completionRate}%`} />
         <StatCard icon={FileBadge2} label="Certs Issued" value={stats.certsIssued} />
-        <StatCard icon={Mail} label="Emails Sent" value={stats.emailsSent} />
+        <StatCard icon={AlertTriangle} label="Failed Deliveries" value={stats.failedCount} alert={stats.failedCount > 0} />
       </div>
 
       <div className="bg-white rounded-xl border border-zinc-200">
@@ -188,11 +211,33 @@ export default function CohortDetailPage() {
                     <td className="px-6 py-3.5">
                       {m.certId ? (
                         <div className="flex items-center gap-2">
-                          <Mail size={14} className={m.emailSent ? 'text-green-600' : 'text-zinc-300'} title={m.emailSent ? 'Emailed' : 'Not emailed'} />
-                          <MessageCircle size={14} className={m.whatsappSent ? 'text-green-600' : 'text-zinc-300'} title={m.whatsappSent ? 'Sent via WhatsApp' : 'Not sent via WhatsApp'} />
+                          <Mail
+                            size={14}
+                            className={m.emailError ? 'text-red-500' : m.emailSent ? 'text-green-600' : 'text-zinc-300'}
+                            title={m.emailError ? `Failed: ${m.emailError}` : m.emailSent ? 'Emailed' : 'Not emailed'}
+                          />
+                          <MessageCircle
+                            size={14}
+                            className={m.whatsappError ? 'text-red-500' : m.whatsappSent ? 'text-green-600' : 'text-zinc-300'}
+                            title={m.whatsappError ? `Failed: ${m.whatsappError}` : m.whatsappSent ? 'Sent via WhatsApp' : 'Not sent via WhatsApp'}
+                          />
+                          {(m.emailError || m.whatsappError) && (
+                            <button
+                              onClick={() => handleRetryDelivery(m)}
+                              disabled={retryingMemberId === m.memberId}
+                              title="Retry delivery"
+                              className="flex items-center gap-1 text-xs font-medium text-[#B8962E] hover:text-[#96771f] disabled:opacity-50"
+                            >
+                              <RotateCw size={12} className={retryingMemberId === m.memberId ? 'animate-spin' : ''} />
+                              Retry
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <span className="text-zinc-300">—</span>
+                      )}
+                      {rowError?.memberId === m.memberId && (
+                        <p className="mt-1 text-xs text-red-600">{rowError.message}</p>
                       )}
                     </td>
                   </tr>
