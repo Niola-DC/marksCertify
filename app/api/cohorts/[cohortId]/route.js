@@ -29,7 +29,7 @@ export async function GET(request, { params }) {
     .select(`
       id, status, completed_at, created_at,
       earners ( full_name, email, phone_number ),
-      certificates ( cert_id, pdf_url, verify_url, email_sent, whatsapp_sent )
+      certificates ( cert_id, pdf_url, verify_url, email_sent, whatsapp_sent, email_error, whatsapp_error )
     `)
     .eq('cohort_id', cohortId)
     .order('created_at', { ascending: false })
@@ -51,10 +51,13 @@ export async function GET(request, { params }) {
     verifyUrl: m.certificates?.verify_url || null,
     emailSent: m.certificates?.email_sent || false,
     whatsappSent: m.certificates?.whatsapp_sent || false,
+    emailError: m.certificates?.email_error || null,
+    whatsappError: m.certificates?.whatsapp_error || null,
   }))
 
   const completedCount = memberList.filter((m) => m.status === 'completed').length
   const certsIssued = memberList.filter((m) => m.certId).length
+  const failedCount = memberList.filter((m) => m.certId && (m.emailError || m.whatsappError)).length
 
   return Response.json({
     cohort: {
@@ -76,6 +79,7 @@ export async function GET(request, { params }) {
       completionRate: memberList.length ? Math.round((completedCount / memberList.length) * 100) : 0,
       emailsSent: memberList.filter((m) => m.emailSent).length,
       whatsappsSent: memberList.filter((m) => m.whatsappSent).length,
+      failedCount,
     },
   })
 }
