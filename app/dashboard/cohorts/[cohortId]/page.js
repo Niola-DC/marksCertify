@@ -37,6 +37,7 @@ export default function CohortDetailPage() {
   const [pendingMemberId, setPendingMemberId] = useState(null)
   const [rowError, setRowError] = useState(null)
   const [retryingMemberId, setRetryingMemberId] = useState(null)
+  const [retryError, setRetryError] = useState(null)
 
   const fetchCohort = useCallback(() => {
     setLoading(true)
