@@ -71,7 +71,7 @@ export async function distributeCertificate({ certId, institutionId }) {
 
       await supabaseAdmin
         .from('certificates')
-        .update({ email_sent: true, email_sent_at: new Date().toISOString() })
+        .update({ email_sent: true, email_sent_at: new Date().toISOString(), email_error: null })
         .eq('id', cert.id)
 
       results.email = 'sent'
@@ -79,6 +79,10 @@ export async function distributeCertificate({ certId, institutionId }) {
       console.error('[distribute] Email failed:', emailErr)
       results.email = 'failed'
       results.emailError = emailErr.message
+      await supabaseAdmin
+        .from('certificates')
+        .update({ email_error: emailErr.message })
+        .eq('id', cert.id)
     }
   } else {
     results.email = 'skipped — no email address'
@@ -131,7 +135,7 @@ export async function distributeCertificate({ certId, institutionId }) {
         if (twilioResponse.ok) {
           await supabaseAdmin
             .from('certificates')
-            .update({ whatsapp_sent: true, whatsapp_sent_at: new Date().toISOString() })
+            .update({ whatsapp_sent: true, whatsapp_sent_at: new Date().toISOString(), whatsapp_error: null })
             .eq('id', cert.id)
           results.whatsapp = 'sent'
         } else {
@@ -139,11 +143,19 @@ export async function distributeCertificate({ certId, institutionId }) {
           console.error('[distribute] WhatsApp failed:', errData)
           results.whatsapp = 'failed'
           results.whatsappError = errData.message
+          await supabaseAdmin
+            .from('certificates')
+            .update({ whatsapp_error: errData.message })
+            .eq('id', cert.id)
         }
       } catch (waErr) {
         console.error('[distribute] WhatsApp error:', waErr)
         results.whatsapp = 'failed'
         results.whatsappError = waErr.message
+        await supabaseAdmin
+          .from('certificates')
+          .update({ whatsapp_error: waErr.message })
+          .eq('id', cert.id)
       }
     }
   } else {
