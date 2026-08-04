@@ -10,6 +10,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import BadgeActions from '../components/BadgeActions'
 
 export default function PortalPage() {
   const [query, setQuery] = useState('')
@@ -160,7 +161,7 @@ function ResultCard({ cert }) {
         <p className="text-[11px] font-medium tracking-wide text-[#B8962E]/90">{cert.certId}</p>
       </div>
 
-      <div className="grid grid-cols-3 divide-x divide-[#B8962E]/15 border-t border-[#B8962E]/15">
+      <div className={`grid ${isActive ? 'grid-cols-4' : 'grid-cols-3'} divide-x divide-[#B8962E]/15 border-t border-[#B8962E]/15`}>
         <a
           href={cert.pdfUrl}
           target="_blank"
@@ -181,6 +182,7 @@ function ResultCard({ cert }) {
         >
           Verify
         </a>
+        {isActive && <BadgeActions cert={cert} variant="compact" />}
       </div>
     </div>
   )
