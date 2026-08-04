@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, FileBadge2, Building2, Settings, LogOut, Menu, X, WifiOff } from 'lucide-react'
+import { LayoutDashboard, FileBadge2, Users, Building2, Settings, LogOut, Menu, X, WifiOff } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { SessionContext } from './SessionContext'
 import ConfirmModal from './components/ConfirmModal'
@@ -21,6 +21,7 @@ import ConfirmModal from './components/ConfirmModal'
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/certificates', label: 'Certificates', icon: FileBadge2 },
+  { href: '/dashboard/cohorts', label: 'Cohorts', icon: Users },
   { href: '/dashboard/profile', label: 'Profile', icon: Building2 },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]
@@ -156,7 +157,7 @@ export default function DashboardShell({ children }) {
 
           <nav className="flex flex-col gap-1">
             {NAV_ITEMS.map((item) => {
-              const active = pathname === item.href
+              const active = item.href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(item.href)
               const Icon = item.icon
               return (
                 <Link
@@ -194,7 +195,9 @@ export default function DashboardShell({ children }) {
                 <Menu size={22} />
               </button>
               <h1 className="text-lg font-semibold text-zinc-900">
-                {NAV_ITEMS.find((item) => item.href === pathname)?.label || 'Dashboard'}
+                {NAV_ITEMS.find((item) =>
+                  item.href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(item.href)
+                )?.label || 'Dashboard'}
               </h1>
             </div>
             {institution && (
