@@ -8,6 +8,7 @@
 
 import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 import { requireAdmin } from '../../../lib/apiAuth'
+import { DEFAULT_TEMPLATE_CONFIG, isMissingColumnError } from '../../../lib/templateOptions'
 
 const PLAN_LIMITS = {
   starter: 50,
@@ -16,16 +17,44 @@ const PLAN_LIMITS = {
   enterprise: Infinity,
 }
 
+// Cert-visible profile fields — the ones an institution needs filled in
+// before its certificates look right to a recipient.
+const PROFILE_COLS = 'name, plan_tier, certs_issued_this_month, logo_url, contact_email, default_signatory_name, default_signatory_title'
+
+// `template_config` arrives with migration 0006 — select it optionally so
+// the dashboard still loads if that migration hasn't been applied.
+async function loadInstitution(institutionId) {
+  const withTemplate = await supabaseAdmin
+    .from('institutions')
+    .select(`${PROFILE_COLS}, template_config`)
+    .eq('id', institutionId)
+    .single()
+
+  if (isMissingColumnError(withTemplate.error)) {
+    return supabaseAdmin
+      .from('institutions')
+      .select(PROFILE_COLS)
+      .eq('id', institutionId)
+      .single()
+  }
+  return withTemplate
+}
+
+// "Customized" = the saved config differs from the shipped default (a
+// brand-new institution carries the default until it touches the builder).
+function isTemplateCustomized(config) {
+  if (!config) return false
+  return Object.keys(DEFAULT_TEMPLATE_CONFIG).some(
+    (key) => config[key] !== DEFAULT_TEMPLATE_CONFIG[key]
+  )
+}
+
 export async function GET(request) {
   const auth = await requireAdmin(request)
   if (auth instanceof Response) return auth
   const { institutionId } = auth
 
-  const { data: institution, error: instError } = await supabaseAdmin
-    .from('institutions')
-    .select('name, plan_tier, certs_issued_this_month')
-    .eq('id', institutionId)
-    .single()
+  const { data: institution, error: instError } = await loadInstitution(institutionId)
 
   if (instError || !institution) {
     return Response.json({ error: 'Institution not found.' }, { status: 404 })
@@ -55,6 +84,15 @@ export async function GET(request) {
       planTier: institution.plan_tier,
       certsThisMonth: institution.certs_issued_this_month,
       planLimit: PLAN_LIMITS[institution.plan_tier],
+    },
+    setup: {
+      profileComplete: Boolean(
+        institution.logo_url &&
+        institution.contact_email &&
+        institution.default_signatory_name &&
+        institution.default_signatory_title
+      ),
+      templateCustomized: isTemplateCustomized(institution.template_config),
     },
     totals: {
       total: total || 0,
