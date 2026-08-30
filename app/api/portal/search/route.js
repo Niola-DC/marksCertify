@@ -6,14 +6,9 @@
 // Earners find their own certificates by name, email, or Cert ID.
 // ============================================================
 
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 import { rateLimit, getClientKey } from '../../../lib/rateLimit'
 import { escapePostgrestValue } from '../../../lib/postgrestEscape'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-)
 
 const SELECT = `
   cert_id, course_title, issue_date, expiry_date, status, pdf_url, verify_url,

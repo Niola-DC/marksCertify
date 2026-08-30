@@ -15,9 +15,13 @@
 
 import { supabaseAdmin } from '../../../../lib/supabaseAdmin'
 import { requireAdmin } from '../../../../lib/apiAuth'
-import { REQUIRED_CUSTOM_DESIGN_FIELDS, sanitizeCustomDesignFields } from '../../../../lib/templateOptions'
+import { REQUIRED_CUSTOM_DESIGN_FIELDS, sanitizeCustomDesignFields, isMissingColumnError } from '../../../../lib/templateOptions'
 
 const SELECT = 'addons, custom_design_url, custom_design_fields, custom_design_enabled'
+
+// The Custom Design state when migration 0007 hasn't been applied (no
+// addons / custom_design_* columns): not entitled, nothing uploaded.
+const UNCONFIGURED = { entitled: false, designUrl: null, fields: {}, enabled: false }
 
 export async function GET(request) {
   const auth = await requireAdmin(request)
@@ -29,6 +33,9 @@ export async function GET(request) {
     .eq('id', auth.institutionId)
     .single()
 
+  if (isMissingColumnError(error)) {
+    return Response.json(UNCONFIGURED)
+  }
   if (error || !institution) {
     return Response.json({ error: 'Institution not found.' }, { status: 404 })
   }
@@ -51,6 +58,12 @@ export async function PATCH(request) {
     .eq('id', auth.institutionId)
     .single()
 
+  if (isMissingColumnError(instError)) {
+    return Response.json(
+      { error: 'Custom Design storage isn’t set up yet. Apply database migration 0007 to enable it.' },
+      { status: 503 }
+    )
+  }
   if (instError || !institution) {
     return Response.json({ error: 'Institution not found.' }, { status: 404 })
   }
