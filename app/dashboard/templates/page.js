@@ -12,7 +12,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Lock, Upload, PenLine } from 'lucide-react'
+import { Lock, Upload, PenLine, ChevronDown } from 'lucide-react'
 import { HexColorPicker, HexColorInput } from 'react-colorful'
 import { useSessionContext } from '../SessionContext'
 import CertificatePreview from './CertificatePreview'
@@ -31,6 +31,10 @@ export default function TemplatesPage() {
 
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
+  // false once the API reports the template_config column is missing
+  // (migration 0006 not applied) — the form still works off defaults, we
+  // just tell the user nothing is saved yet.
+  const [templateConfigured, setTemplateConfigured] = useState(true)
   const [form, setForm] = useState(DEFAULT_TEMPLATE_CONFIG)
   const [branding, setBranding] = useState({
     name: '',
@@ -70,6 +74,7 @@ export default function TemplatesPage() {
           throw new Error(profileJson.detail ? `${profileJson.error} ${profileJson.detail}` : profileJson.error)
         }
         setForm(templateJson.templateConfig)
+        setTemplateConfigured(templateJson.configured !== false)
         setBranding({
           name: profileJson.institution.name,
           logoUrl: profileJson.institution.logoUrl,
@@ -95,6 +100,8 @@ export default function TemplatesPage() {
   function update(field) {
     return (value) => setForm((prev) => ({ ...prev, [field]: value }))
   }
+
+  const selectedFont = FONT_OPTIONS.find((f) => f.key === form.fontFamily) || FONT_OPTIONS[0]
 
   async function handleSave() {
     setSaving(true)
@@ -136,7 +143,13 @@ export default function TemplatesPage() {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
+    <>
+      {!templateConfigured && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          No saved template yet — you’re seeing the default styling. Your changes here won’t be saved until certificate template storage is enabled.
+        </div>
+      )}
+    <div className="flex flex-col lg:flex-row lg:items-start gap-6">
       <div className="flex-1 flex flex-col gap-6 max-w-xl">
         <CustomDesignCard customDesign={customDesign} />
 
@@ -185,26 +198,30 @@ export default function TemplatesPage() {
           </div>
         </div>
 
-        {/* Font */}
-        <div className="bg-white rounded-xl border border-zinc-200 p-6 flex flex-col gap-4">
+        {/* Font — select rather than a button stack; the closed control
+            renders the label in the font that's currently in use. */}
+        <div className="bg-white rounded-xl border border-zinc-200 p-6 flex flex-col gap-3">
           <h2 className="text-base font-semibold text-zinc-900">Font</h2>
-          <div className="flex flex-col gap-2">
-            {FONT_OPTIONS.map((font) => (
-              <button
-                key={font.key}
-                type="button"
-                onClick={() => update('fontFamily')(font.key)}
-                style={{ fontFamily: font.cssFamily }}
-                className={`text-left rounded-md border px-4 py-2 text-lg transition-colors ${
-                  form.fontFamily === font.key
-                    ? 'border-[#B8962E] bg-[#B8962E]/5'
-                    : 'border-zinc-200 hover:border-zinc-300'
-                }`}
-              >
-                {font.label}
-              </button>
-            ))}
+          <div className="relative">
+            <select
+              value={form.fontFamily}
+              onChange={(e) => update('fontFamily')(e.target.value)}
+              style={{ fontFamily: selectedFont.cssFamily }}
+              aria-label="Certificate heading font"
+              className="w-full appearance-none rounded-md border border-zinc-200 bg-white px-4 py-2.5 pr-10 text-lg text-zinc-900 focus:outline-none focus:border-[#B8962E]"
+            >
+              {FONT_OPTIONS.map((font) => (
+                <option key={font.key} value={font.key} style={{ fontFamily: font.cssFamily }}>
+                  {font.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={16}
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400"
+            />
           </div>
+          <p className="text-xs text-zinc-400">Heading typeface used across the certificate.</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -229,8 +246,11 @@ export default function TemplatesPage() {
         </p>
       </div>
 
-      {/* Live preview */}
-      <div className="flex-1 flex flex-col gap-3">
+      {/* Live preview — pinned so it stays in view while the controls
+          column scrolls. On mobile/tablet it moves above the controls
+          (order-first) and sticks to the top of the scroll area; on
+          desktop it stays in the right column, pinned as you scroll. */}
+      <div className="order-first lg:order-none w-full max-w-[400px] mx-auto lg:max-w-none lg:mx-0 lg:flex-1 self-start sticky top-2 lg:top-6 z-10 bg-[#F7F7F8] pb-3 lg:pb-0 flex flex-col gap-3">
         <h2 className="text-base font-semibold text-zinc-900">Live Preview</h2>
         <CertificatePreview
           templateConfig={form}
@@ -242,6 +262,7 @@ export default function TemplatesPage() {
         />
       </div>
     </div>
+    </>
   )
 }
 
