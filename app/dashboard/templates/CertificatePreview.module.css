@@ -1,0 +1,262 @@
+/* ============================================================
+   MARKSCERTIFY — Certificate live preview
+   Structural/visual twin of templates/certificate.html, scaled to fit
+   a dashboard card instead of A4 mm. Uses the same CSS-variable +
+   data-style attribute-selector pattern as the real PDF template, so
+   a template_config change here previews (closely, not pixel-exact —
+   see the plan's accepted drift note) the same look Puppeteer renders.
+   ============================================================ */
+
+.wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 297 / 210;
+  background: var(--secondary-color);
+  color: #ffffff;
+  font-family: var(--font-heading);
+  overflow: hidden;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.outerBorder {
+  position: absolute;
+  inset: 1.7%;
+  border: 1.5px solid var(--primary-color);
+}
+
+.innerBorder {
+  position: absolute;
+  inset: 2.4%;
+  border: 0.5px solid color-mix(in srgb, var(--primary-color) 40%, transparent);
+}
+
+.corner {
+  position: absolute;
+  width: 5%;
+  height: 7%;
+  border-color: var(--primary-color);
+  border-style: solid;
+}
+.cornerTl { top: 1.4%; left: 1.4%; border-width: 2px 0 0 2px; }
+.cornerTr { top: 1.4%; right: 1.4%; border-width: 2px 2px 0 0; }
+.cornerBl { bottom: 1.4%; left: 1.4%; border-width: 0 0 2px 2px; }
+.cornerBr { bottom: 1.4%; right: 1.4%; border-width: 0 2px 2px 0; }
+
+/* ── Base style overrides — same 4 non-classic treatments as certificate.html ── */
+.wrap[data-style='modern-minimal'] .outerBorder,
+.wrap[data-style='modern-minimal'] .innerBorder,
+.wrap[data-style='modern-minimal'] .corner {
+  display: none;
+}
+.wrap[data-style='modern-minimal'] {
+  border: 1px solid var(--primary-color);
+}
+
+.wrap[data-style='ornate'] .corner {
+  width: 7.5%;
+  height: 10.5%;
+}
+.wrap[data-style='ornate'] .cornerTl { border-width: 3px 0 0 3px; }
+.wrap[data-style='ornate'] .cornerTr { border-width: 3px 3px 0 0; }
+.wrap[data-style='ornate'] .cornerBl { border-width: 0 0 3px 3px; }
+.wrap[data-style='ornate'] .cornerBr { border-width: 0 3px 3px 0; }
+.wrap[data-style='ornate'] .innerBorder {
+  inset: 2.8%;
+  border-width: 1px;
+}
+
+.wrap[data-style='bold-frame'] .innerBorder,
+.wrap[data-style='bold-frame'] .corner {
+  display: none;
+}
+.wrap[data-style='bold-frame'] .outerBorder {
+  inset: 2%;
+  border-width: 4px;
+}
+
+.wrap[data-style='clean-line'] .outerBorder,
+.wrap[data-style='clean-line'] .innerBorder,
+.wrap[data-style='clean-line'] .corner {
+  display: none;
+}
+.wrap[data-style='clean-line'] .divider {
+  width: 34%;
+}
+
+/* ── Content ─────────────────────────────────────── */
+.content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8% 6%;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 4%;
+  margin-bottom: 2%;
+}
+
+.logo {
+  height: 28px;
+  max-width: 33%;
+  object-fit: contain;
+  margin-bottom: 4px;
+}
+
+.institutionName {
+  font-family: Arial, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--primary-color);
+  text-align: center;
+}
+
+.divider {
+  width: 20%;
+  height: 1px;
+  background: var(--primary-color);
+  margin: 3% auto;
+}
+
+.certLabel {
+  font-family: Arial, sans-serif;
+  font-size: 0.52rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--primary-color) 80%, transparent);
+  margin-bottom: 1.5%;
+}
+
+.presents {
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+  margin-bottom: 2%;
+}
+
+.earnerName {
+  font-size: 1.5rem;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+  margin-bottom: 2%;
+  text-align: center;
+  font-style: italic;
+}
+
+.nameUnderline {
+  width: 45%;
+  height: 1px;
+  background: var(--primary-color);
+  margin: 0 auto 3%;
+}
+
+.completedText {
+  font-family: Arial, sans-serif;
+  font-size: 0.58rem;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.5px;
+  margin-bottom: 2%;
+}
+
+.courseTitle {
+  font-family: Arial, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  text-align: center;
+  margin-bottom: 1%;
+}
+
+.issueDate {
+  font-family: Arial, sans-serif;
+  font-size: 0.5rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  width: 100%;
+  margin-top: auto;
+}
+
+.signatureBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.signatureImg {
+  height: 22px;
+  max-width: 30%;
+  object-fit: contain;
+  margin-bottom: 2px;
+  filter: brightness(0) invert(1);
+}
+
+.signatureText {
+  font-family: var(--font-heading);
+  font-style: italic;
+  font-size: 0.85rem;
+  color: #ffffff;
+  margin-bottom: 2px;
+}
+
+.signatureLine {
+  width: 60px;
+  height: 0.5px;
+  background: color-mix(in srgb, var(--primary-color) 60%, transparent);
+  margin-bottom: 2px;
+}
+
+.signatoryName {
+  font-family: Arial, sans-serif;
+  font-size: 0.5rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.signatoryTitle {
+  font-family: Arial, sans-serif;
+  font-size: 0.45rem;
+  color: color-mix(in srgb, var(--primary-color) 80%, transparent);
+}
+
+.certMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.certIdLabel {
+  font-family: Arial, sans-serif;
+  font-size: 0.4rem;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+}
+
+.certIdValue {
+  font-family: Arial, sans-serif;
+  font-size: 0.5rem;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--primary-color) 90%, transparent);
+}
+
+.qrBlock {
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+  border-radius: 2px;
+}
