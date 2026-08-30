@@ -16,8 +16,22 @@
 import { supabaseAdmin } from './supabaseAdmin'
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
 const EMAIL_FROM = process.env.RESEND_FROM || 'MarksCertify <onboarding@resend.dev>'
+
+// Created on first send, not at module load: `new Resend(undefined)` throws
+// "Missing API key", and `next build` evaluates this module while
+// collecting page data for every route that imports it. The key is only
+// needed at request time.
+let resendClient = null
+function resend() {
+  if (!resendClient) {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error('Email delivery is not configured — set RESEND_API_KEY.')
+    }
+    resendClient = new Resend(process.env.RESEND_API_KEY)
+  }
+  return resendClient
+}
 
 // Looks up the cert by its human-readable ID, sends email + WhatsApp where
 // the earner has contact info, and records delivery status on the cert
@@ -52,7 +66,7 @@ export async function distributeCertificate({ certId, institutionId }) {
   // ── Send Email ────────────────────────────────────────
   if (cert.earners.email) {
     try {
-      const { error: sendError } = await resend.emails.send({
+      const { error: sendError } = await resend().emails.send({
         from: EMAIL_FROM,
         to: cert.earners.email,
         subject: `Your Certificate — ${cert.course_title}`,
