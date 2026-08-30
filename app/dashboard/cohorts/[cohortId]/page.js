@@ -7,9 +7,11 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Users, CheckCircle2, FileBadge2, Mail, MessageCircle, UserPlus, Printer, AlertTriangle, RotateCw } from 'lucide-react'
+import { ArrowLeft, Users, CheckCircle2, FileBadge2, Mail, MessageCircle, UserPlus, Printer, AlertTriangle, RotateCw, Pencil, Trash2 } from 'lucide-react'
 import { useSessionContext } from '../../SessionContext'
 import AddCohortMembersModal from '../../components/AddCohortMembersModal'
+import EditCohortModal from '../../components/EditCohortModal'
+import ConfirmModal from '../../components/ConfirmModal'
 
 const STATUS_OPTIONS = [
   { value: 'enrolled', label: 'Enrolled' },
@@ -30,6 +32,9 @@ export default function CohortDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showAddMembers, setShowAddMembers] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
 
   // Tracks which member row currently has a status change in flight —
   // completion triggers real PDF generation + distribution, which takes
@@ -87,6 +92,28 @@ export default function CohortDetailPage() {
     fetchCohort()
   }
 
+  // Metadata-only edit — stats are unchanged, so merge the returned
+  // fields into the header rather than refetching the whole member list.
+  function handleCohortSaved(updated) {
+    setShowEdit(false)
+    setCohort((prev) => ({ ...prev, ...updated }))
+  }
+
+  async function handleDeleteCohort() {
+    setDeleteError(null)
+    try {
+      const res = await fetch(`/api/cohorts/${cohortId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error || 'Failed to delete cohort.')
+      router.push('/dashboard/cohorts')
+    } catch (err) {
+      setDeleteError(err.message)
+    }
+  }
+
   async function handleRetryDelivery(member) {
     setRetryingMemberId(member.memberId)
     setRetryError(null)
@@ -123,18 +150,35 @@ export default function CohortDetailPage() {
         Back to Cohorts
       </button>
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-zinc-900">{cohort.name}</h2>
           <p className="text-sm text-zinc-500">{cohort.program}</p>
         </div>
-        <button
-          onClick={() => setShowAddMembers(true)}
-          className="flex shrink-0 items-center gap-2 rounded-md bg-[#0D0D0D] px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
-        >
-          <UserPlus size={16} />
-          Add Participants
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={() => setShowEdit(true)}
+            className="flex items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50"
+          >
+            <Pencil size={15} />
+            Edit
+          </button>
+          <button
+            onClick={() => setShowDelete(true)}
+            title="Delete cohort"
+            aria-label="Delete cohort"
+            className="flex items-center rounded-md border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+          >
+            <Trash2 size={15} />
+          </button>
+          <button
+            onClick={() => setShowAddMembers(true)}
+            className="flex items-center gap-2 rounded-md bg-[#0D0D0D] px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+          >
+            <UserPlus size={16} />
+            Add Participants
+          </button>
+        </div>
       </div>
 
       {cohort.completionCriteria && (
@@ -251,6 +295,26 @@ export default function CohortDetailPage() {
 
       {showAddMembers && (
         <AddCohortMembersModal cohortId={cohortId} onClose={() => setShowAddMembers(false)} onAdded={handleMembersAdded} />
+      )}
+
+      {showEdit && (
+        <EditCohortModal cohort={cohort} onClose={() => setShowEdit(false)} onSaved={handleCohortSaved} />
+      )}
+
+      {showDelete && (
+        <ConfirmModal
+          title="Delete Cohort"
+          message={
+            stats.certsIssued > 0
+              ? `Delete "${cohort.name}"? Its ${stats.memberCount} participant record${stats.memberCount === 1 ? '' : 's'} will be removed. The ${stats.certsIssued} certificate${stats.certsIssued === 1 ? '' : 's'} already issued stay valid and verifiable.`
+              : `Delete "${cohort.name}"? Its ${stats.memberCount} participant record${stats.memberCount === 1 ? '' : 's'} will be removed. This cannot be undone.`
+          }
+          confirmLabel="Delete Cohort"
+          danger
+          error={deleteError}
+          onConfirm={handleDeleteCohort}
+          onCancel={() => { setShowDelete(false); setDeleteError(null) }}
+        />
       )}
     </div>
   )

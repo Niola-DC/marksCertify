@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, FileBadge2, Users, Building2, Settings, LogOut, Menu, X, WifiOff } from 'lucide-react'
+import { LayoutDashboard, FileBadge2, Users, Building2, Settings, LogOut, Menu, X, WifiOff, Palette } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { SessionContext } from './SessionContext'
 import ConfirmModal from './components/ConfirmModal'
@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/certificates', label: 'Certificates', icon: FileBadge2 },
   { href: '/dashboard/cohorts', label: 'Cohorts', icon: Users },
+  { href: '/dashboard/templates', label: 'Templates', icon: Palette },
   { href: '/dashboard/profile', label: 'Profile', icon: Building2 },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]

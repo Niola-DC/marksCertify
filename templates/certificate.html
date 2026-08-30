@@ -8,6 +8,23 @@
         /* ── Reset ─────────────────────────────────────── */
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        /* ── Template Builder variables ──────────────────
+           Populated via placeholder substitution in
+           certificateGenerator.js's `replacements` map. White/light text
+           colors below are NOT derived from --secondary-color — they
+           assume a dark background, matching today's design. An
+           institution that picks a light secondary color will see
+           reduced contrast; deriving readable text color from an
+           arbitrary background is out of scope for this pass.
+        ─────────────────────────────────────────────── */
+        {{FONT_FACE_BLOCK}}
+
+        :root {
+          --primary-color: {{PRIMARY_COLOR}};
+          --secondary-color: {{SECONDARY_COLOR}};
+          --font-heading: {{FONT_HEADING}};
+        }
+
         /* ── Page — A4 Landscape ────────────────────────
            Puppeteer will render this at exactly 297mm × 210mm.
            All sizing is in mm so it's print-accurate.
@@ -15,8 +32,8 @@
         html, body {
           width: 297mm;
           height: 210mm;
-          font-family: 'Georgia', 'Times New Roman', serif;
-          background: #0D0D0D;
+          font-family: var(--font-heading);
+          background: var(--secondary-color);
           color: #FFFFFF;
           overflow: hidden;
         }
@@ -36,13 +53,13 @@
         .outer-border {
           position: absolute;
           inset: 5mm;
-          border: 1.5px solid #B8962E;
+          border: 1.5px solid var(--primary-color);
         }
 
         .inner-border {
           position: absolute;
           inset: 7mm;
-          border: 0.5px solid rgba(184, 150, 46, 0.4);
+          border: 0.5px solid color-mix(in srgb, var(--primary-color) 40%, transparent);
         }
 
         /* ── Corner ornaments ───────────────────────── */
@@ -50,7 +67,7 @@
           position: absolute;
           width: 12mm;
           height: 12mm;
-          border-color: #B8962E;
+          border-color: var(--primary-color);
           border-style: solid;
         }
         .corner-tl { top: 4mm;  left: 4mm;  border-width: 2px 0 0 2px; }
@@ -81,14 +98,14 @@
           font-weight: 600;
           letter-spacing: 3px;
           text-transform: uppercase;
-          color: #B8962E;
+          color: var(--primary-color);
         }
 
         /* ── Divider ────────────────────────────────── */
         .divider {
           width: 60mm;
           height: 0.5px;
-          background: linear-gradient(to right, transparent, #B8962E, transparent);
+          background: linear-gradient(to right, transparent, var(--primary-color), transparent);
           margin: 4mm auto;
         }
 
@@ -98,7 +115,7 @@
           font-size: 7pt;
           letter-spacing: 5px;
           text-transform: uppercase;
-          color: rgba(184, 150, 46, 0.8);
+          color: color-mix(in srgb, var(--primary-color) 80%, transparent);
           margin-bottom: 2mm;
         }
 
@@ -125,7 +142,7 @@
         .name-underline {
           width: 80mm;
           height: 1px;
-          background: #B8962E;
+          background: var(--primary-color);
           margin: 0 auto 5mm;
         }
 
@@ -143,7 +160,7 @@
           font-family: 'Arial', sans-serif;
           font-size: 14pt;
           font-weight: 700;
-          color: #B8962E;
+          color: var(--primary-color);
           text-align: center;
           letter-spacing: 0.5px;
           margin-bottom: 2mm;
@@ -185,7 +202,7 @@
 
         /* ── Fallback signature — used when no image was uploaded ─── */
         .signature-text {
-          font-family: 'Georgia', 'Times New Roman', serif;
+          font-family: var(--font-heading);
           font-style: italic;
           font-size: 13pt;
           color: #FFFFFF;
@@ -195,7 +212,7 @@
         .signature-line {
           width: 40mm;
           height: 0.5px;
-          background: rgba(184, 150, 46, 0.6);
+          background: color-mix(in srgb, var(--primary-color) 60%, transparent);
           margin-bottom: 1.5mm;
         }
 
@@ -209,7 +226,7 @@
         .signatory-title {
           font-family: 'Arial', sans-serif;
           font-size: 6pt;
-          color: rgba(184, 150, 46, 0.8);
+          color: color-mix(in srgb, var(--primary-color) 80%, transparent);
         }
 
         /* ── Cert ID block (centre of footer) ──────── */
@@ -232,7 +249,7 @@
           font-family: 'Arial', sans-serif;
           font-size: 7pt;
           font-weight: 600;
-          color: rgba(184, 150, 46, 0.9);
+          color: color-mix(in srgb, var(--primary-color) 90%, transparent);
           letter-spacing: 1px;
         }
 
@@ -270,9 +287,54 @@
           text-transform: uppercase;
           white-space: nowrap;
         }
+
+        /* ── Base style overrides ─────────────────────
+           5 mutually exclusive treatments selected via data-style
+           on <body>. "classic" is the default above — unmodified,
+           no override block needed.
+        ─────────────────────────────────────────────── */
+        [data-style="modern-minimal"] .outer-border,
+        [data-style="modern-minimal"] .inner-border,
+        [data-style="modern-minimal"] .corner {
+          display: none;
+        }
+        [data-style="modern-minimal"] .certificate {
+          border: 1px solid var(--primary-color);
+        }
+
+        [data-style="ornate"] .corner {
+          width: 18mm;
+          height: 18mm;
+        }
+        [data-style="ornate"] .corner-tl { border-width: 3px 0 0 3px; }
+        [data-style="ornate"] .corner-tr { border-width: 3px 3px 0 0; }
+        [data-style="ornate"] .corner-bl { border-width: 0 0 3px 3px; }
+        [data-style="ornate"] .corner-br { border-width: 0 3px 3px 0; }
+        [data-style="ornate"] .inner-border {
+          inset: 8mm;
+          border-width: 1px;
+        }
+
+        [data-style="bold-frame"] .inner-border,
+        [data-style="bold-frame"] .corner {
+          display: none;
+        }
+        [data-style="bold-frame"] .outer-border {
+          inset: 6mm;
+          border-width: 4px;
+        }
+
+        [data-style="clean-line"] .outer-border,
+        [data-style="clean-line"] .inner-border,
+        [data-style="clean-line"] .corner {
+          display: none;
+        }
+        [data-style="clean-line"] .divider {
+          width: 100mm;
+        }
     </style>
 </head>
-<body>
+<body data-style="{{BASE_STYLE}}">
 <div class="certificate">
 
     <!-- Decorative borders -->

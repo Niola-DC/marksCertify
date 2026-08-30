@@ -13,6 +13,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import BadgeActions from '../../components/BadgeActions'
 
 export default function VerifyPage() {
   const params = useParams()
@@ -48,13 +49,21 @@ export default function VerifyPage() {
     )
   }
 
+  // A fetch throwing (offline, DNS blip) or a 429 both land here with no
+  // certificate data at all — rendering the normal card branch for these
+  // would show a red banner over blank institution/earner/course fields
+  // instead of telling the person what actually happened.
+  const isUnresolved = data?.status === 'ERROR' || data?.status === 'RATE_LIMITED'
+
   // ── Status banner colour + label logic ─────────────────
   const isValid = data?.valid === true
-  const statusColor = isValid ? '#2E7D32' : '#B23A3A'
+  const statusColor = isUnresolved ? '#8A7A3A' : isValid ? '#2E7D32' : '#B23A3A'
   const statusLabel =
-    data?.status === 'NOT_FOUND' ? 'NOT FOUND' :
-    data?.status === 'REVOKED'   ? 'REVOKED'   :
-    data?.status === 'EXPIRED'   ? 'EXPIRED'   :
+    data?.status === 'NOT_FOUND'    ? 'NOT FOUND' :
+    data?.status === 'REVOKED'      ? 'REVOKED'   :
+    data?.status === 'EXPIRED'      ? 'EXPIRED'   :
+    data?.status === 'RATE_LIMITED' ? 'TRY AGAIN SHORTLY' :
+    data?.status === 'ERROR'        ? 'COULD NOT CHECK' :
     isValid ? 'VALID' : 'INVALID'
 
   return (
@@ -63,16 +72,22 @@ export default function VerifyPage() {
 
         {/* ── Status Banner ───────────────────────────── */}
         <div style={{ ...styles.banner, background: statusColor }}>
-          <span style={styles.bannerIcon}>{isValid ? '✓' : '✕'}</span>
+          <span style={styles.bannerIcon}>{isUnresolved ? '!' : isValid ? '✓' : '✕'}</span>
           <span style={styles.bannerText}>{statusLabel}</span>
         </div>
 
-        {/* ── Not found — short message only ──────────── */}
+        {/* ── Not found / error / rate-limited — short message only ── */}
         {data?.status === 'NOT_FOUND' ? (
           <div style={styles.body}>
             <p style={styles.notFoundText}>
               We could not find a certificate with ID <strong>{certId}</strong>.
               Please check the ID and try again.
+            </p>
+          </div>
+        ) : isUnresolved ? (
+          <div style={styles.body}>
+            <p style={styles.notFoundText}>
+              {data?.message || 'Something went wrong checking this certificate. Please check your connection and try again.'}
             </p>
           </div>
         ) : (
@@ -128,6 +143,23 @@ export default function VerifyPage() {
             {/* Cert ID */}
             <p style={styles.label}>Certificate ID</p>
             <p style={styles.certId}>{data?.certId}</p>
+
+            {isValid && (
+              <>
+                <div style={styles.divider} />
+                <BadgeActions
+                  cert={{
+                    certId: data.certId,
+                    courseTitle: data.courseTitle,
+                    institutionName: data.institutionName,
+                    institutionLogo: data.institutionLogo,
+                    issueDate: data.issueDate,
+                    verifyUrl: typeof window !== 'undefined' ? window.location.href : '',
+                  }}
+                  variant="full"
+                />
+              </>
+            )}
 
           </div>
         )}

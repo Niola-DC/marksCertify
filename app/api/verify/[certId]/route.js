@@ -32,26 +32,38 @@ export async function GET(request, { params }) {
   }
 
   // Look up the certificate — join earner and institution in one query
-  const { data: cert, error } = await supabaseAdmin
-    .from('certificates')
-    .select(`
-      cert_id,
-      course_title,
-      issue_date,
-      expiry_date,
-      status,
-      revocation_reason,
-      created_at,
-      earners (
-        full_name
-      ),
-      institutions (
-        name,
-        logo_url
-      )
-    `)
-    .eq('cert_id', certId.toUpperCase())  // cert IDs are always uppercase
-    .single()
+  let cert, error
+  try {
+    ;({ data: cert, error } = await supabaseAdmin
+      .from('certificates')
+      .select(`
+        cert_id,
+        course_title,
+        issue_date,
+        expiry_date,
+        status,
+        revocation_reason,
+        created_at,
+        earners (
+          full_name
+        ),
+        institutions (
+          name,
+          logo_url
+        )
+      `)
+      .eq('cert_id', certId.toUpperCase())  // cert IDs are always uppercase
+      .single())
+  } catch {
+    // A thrown exception (network/connectivity failure talking to
+    // Supabase) is a different problem from "no such certificate" — this
+    // is the page an employer scans a QR code to trust, so telling them
+    // "NOT FOUND" during a transient outage is actively misleading.
+    return Response.json(
+      { valid: false, status: 'ERROR', message: 'Temporarily unable to check this certificate. Please try again shortly.' },
+      { status: 503 }
+    )
+  }
 
   // Certificate not found
   if (error || !cert) {

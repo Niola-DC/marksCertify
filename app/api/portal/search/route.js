@@ -42,28 +42,36 @@ export async function GET(request) {
   const safeTerm = escapePostgrestValue(term)
   const results = new Map()
 
-  // Match by earner name or email
-  const { data: byEarner, error: earnerError } = await supabaseAdmin
-    .from('certificates')
-    .select(SELECT)
-    .or(`full_name.ilike.${safeTerm},email.ilike.${safeTerm}`, { foreignTable: 'earners' })
-    .order('issue_date', { ascending: false })
-    .limit(20)
+  let byEarner, earnerError, byCertId, certIdError
+  try {
+    // Match by earner name or email
+    ;({ data: byEarner, error: earnerError } = await supabaseAdmin
+      .from('certificates')
+      .select(SELECT)
+      .or(`full_name.ilike.${safeTerm},email.ilike.${safeTerm}`, { foreignTable: 'earners' })
+      .order('issue_date', { ascending: false })
+      .limit(20))
 
-  if (earnerError) {
-    return Response.json({ error: 'Search failed.', detail: earnerError.message }, { status: 500 })
-  }
+    if (earnerError) {
+      return Response.json({ error: 'Search failed.', detail: earnerError.message }, { status: 500 })
+    }
 
-  // Match by Cert ID
-  const { data: byCertId, error: certIdError } = await supabaseAdmin
-    .from('certificates')
-    .select(SELECT)
-    .ilike('cert_id', term)
-    .order('issue_date', { ascending: false })
-    .limit(20)
+    // Match by Cert ID
+    ;({ data: byCertId, error: certIdError } = await supabaseAdmin
+      .from('certificates')
+      .select(SELECT)
+      .ilike('cert_id', term)
+      .order('issue_date', { ascending: false })
+      .limit(20))
 
-  if (certIdError) {
-    return Response.json({ error: 'Search failed.', detail: certIdError.message }, { status: 500 })
+    if (certIdError) {
+      return Response.json({ error: 'Search failed.', detail: certIdError.message }, { status: 500 })
+    }
+  } catch {
+    // A thrown exception (network/connectivity blip talking to Supabase)
+    // would otherwise crash into Next.js's generic error page instead of
+    // clean JSON, breaking the earner-facing search UI's error handling.
+    return Response.json({ error: 'Temporarily unable to search right now. Please try again shortly.' }, { status: 503 })
   }
 
   for (const cert of [...(byEarner || []), ...(byCertId || [])]) {
