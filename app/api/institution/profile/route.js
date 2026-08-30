@@ -14,7 +14,7 @@ const SELECT = `
   name, plan_tier, certs_issued_this_month, logo_url, signature_url,
   location, contact_email, contact_phone, website,
   instagram_url, twitter_url, linkedin_url,
-  default_signatory_name, default_signatory_title
+  default_signatory_name, default_signatory_title, addons
 `
 
 export async function GET(request) {
@@ -93,5 +93,6 @@ function toCamelCase(institution) {
     linkedinUrl: institution.linkedin_url,
     defaultSignatoryName: institution.default_signatory_name,
     defaultSignatoryTitle: institution.default_signatory_title,
+    addons: institution.addons || { customDesign: false },
   }
 }
