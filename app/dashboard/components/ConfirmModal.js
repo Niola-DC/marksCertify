@@ -13,6 +13,7 @@ export default function ConfirmModal({
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   danger = false,
+  error = null,
   onConfirm,
   onCancel,
 }) {
@@ -35,6 +36,8 @@ export default function ConfirmModal({
         </div>
         <p className="text-sm font-medium text-zinc-800">{message}</p>
       </div>
+
+      {error && <p className="pt-3 text-center text-sm text-red-600">{error}</p>}
 
       <div className="flex justify-center gap-3 pt-4">
         <button
