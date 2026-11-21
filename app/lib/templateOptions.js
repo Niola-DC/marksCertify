@@ -185,3 +185,12 @@ export function sanitizeCustomDesignFields(raw) {
 
   return { fields, invalidKeys }
 }
+
+// True when a Postgres/PostgREST error is "undefined_column" (SQLSTATE
+// 42703) — i.e. the migration that adds template_config / addons /
+// custom_design_* (0006, 0007) hasn't been applied to this database yet.
+// Lets the read paths degrade to defaults ("nothing configured") instead
+// of surfacing a raw SQL error as a 500 while those migrations roll out.
+export function isMissingColumnError(error) {
+  return error?.code === '42703' || /column\b.*\bdoes not exist/i.test(error?.message || '')
+}

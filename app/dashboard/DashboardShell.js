@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, FileBadge2, Users, Building2, Settings, LogOut, Menu, X, WifiOff, Palette } from 'lucide-react'
+import { LayoutDashboard, FileBadge2, Users, Building2, Settings, LogOut, Menu, X, WifiOff, Palette, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { SessionContext } from './SessionContext'
 import ConfirmModal from './components/ConfirmModal'
@@ -26,6 +26,15 @@ const NAV_ITEMS = [
   { href: '/dashboard/profile', label: 'Profile', icon: Building2 },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]
+
+// Mirrors the pricing table in the PRD (§6.1). Used by the header plan
+// popover — there's no billing backend yet, so "upgrade" is informational.
+const PLAN_INFO = {
+  starter:    { label: 'Starter',    price: 'Free',            allowance: '50 certificates / month' },
+  growth:     { label: 'Growth',     price: '₦15,000 / month', allowance: '500 certificates / month' },
+  scale:      { label: 'Scale',      price: '₦35,000 / month', allowance: '2,000 certificates / month' },
+  enterprise: { label: 'Enterprise', price: 'Custom',          allowance: 'Unlimited certificates' },
+}
 
 // An outage longer than this means the session/token may have gone stale
 // while offline (or the user's laptop slept) — safer to force a clean
@@ -41,6 +50,7 @@ export default function DashboardShell({ children }) {
   const [institution, setInstitution] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const [planOpen, setPlanOpen] = useState(false)
   const [offline, setOffline] = useState(false)
   const offlineSinceRef = useRef(null)
 
@@ -203,9 +213,26 @@ export default function DashboardShell({ children }) {
             </div>
             {institution && (
               <div className="flex items-center gap-3">
-                <div className="text-right hidden sm:block">
-                  <p className="text-sm font-medium text-zinc-900">{institution.name}</p>
-                  <p className="text-xs text-zinc-400 capitalize">{institution.planTier} plan</p>
+                <div className="hidden sm:flex flex-col items-end">
+                  <Link
+                    href="/dashboard/profile"
+                    className="text-sm font-medium text-zinc-900 hover:text-[#B8962E] transition-colors"
+                  >
+                    {institution.name}
+                  </Link>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setPlanOpen((open) => !open)}
+                      className="relative z-50 flex items-center gap-1 text-xs text-zinc-400 capitalize hover:text-zinc-600 transition-colors"
+                    >
+                      {institution.planTier} plan
+                      <ChevronDown size={12} className={`transition-transform ${planOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {planOpen && (
+                      <PlanPopover institution={institution} onClose={() => setPlanOpen(false)} />
+                    )}
+                  </div>
                 </div>
                 <div className="h-9 w-9 shrink-0 rounded-full bg-[#B8962E]/15 flex items-center justify-center text-sm font-semibold text-[#B8962E]">
                   {institution.name?.[0]?.toUpperCase() || '?'}
@@ -236,5 +263,46 @@ export default function DashboardShell({ children }) {
         </div>
       )}
     </SessionContext.Provider>
+  )
+}
+
+// Header plan popover: current plan, this month's usage, and an
+// upgrade CTA that's disabled until billing exists.
+function PlanPopover({ institution, onClose }) {
+  const info = PLAN_INFO[institution.planTier] || PLAN_INFO.starter
+  const limit = institution.planLimit        // number, or null for unlimited (enterprise)
+  const used = institution.certsThisMonth ?? 0
+  const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-lg border border-zinc-200 bg-white p-4 text-left shadow-lg">
+        <p className="text-[10px] uppercase tracking-wider text-zinc-400">Current plan</p>
+        <p className="mt-0.5 text-sm font-semibold text-zinc-900">{info.label}</p>
+        <p className="text-xs text-zinc-500">{info.price} · {info.allowance}</p>
+
+        {limit != null && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between text-xs text-zinc-500">
+              <span>This month</span>
+              <span>{used.toLocaleString()} / {limit.toLocaleString()}</span>
+            </div>
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+              <div className="h-full rounded-full bg-[#B8962E]" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          disabled
+          title="Upgrades aren't available yet"
+          className="mt-4 w-full cursor-not-allowed rounded-md bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-400"
+        >
+          Upgrade — coming soon
+        </button>
+      </div>
+    </>
   )
 }

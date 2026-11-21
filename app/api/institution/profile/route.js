@@ -9,23 +9,33 @@
 
 import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 import { requireAdmin } from '../../../lib/apiAuth'
+import { isMissingColumnError } from '../../../lib/templateOptions'
 
-const SELECT = `
+const SELECT_BASE = `
   name, plan_tier, certs_issued_this_month, logo_url, signature_url,
   location, contact_email, contact_phone, website,
   instagram_url, twitter_url, linkedin_url,
-  default_signatory_name, default_signatory_title, addons
+  default_signatory_name, default_signatory_title
 `
+const SELECT = `${SELECT_BASE}, addons`
+
+// `addons` arrives with migration 0007. Until that's applied, selecting it
+// fails with Postgres 42703 — fall back to the pre-0007 columns so every
+// profile consumer (dashboard header, cohort modals, this page) keeps
+// working. toCamelCase defaults `addons` when it's absent.
+async function selectInstitution(institutionId) {
+  const res = await supabaseAdmin.from('institutions').select(SELECT).eq('id', institutionId).single()
+  if (isMissingColumnError(res.error)) {
+    return supabaseAdmin.from('institutions').select(SELECT_BASE).eq('id', institutionId).single()
+  }
+  return res
+}
 
 export async function GET(request) {
   const auth = await requireAdmin(request)
   if (auth instanceof Response) return auth
 
-  const { data: institution, error } = await supabaseAdmin
-    .from('institutions')
-    .select(SELECT)
-    .eq('id', auth.institutionId)
-    .single()
+  const { data: institution, error } = await selectInstitution(auth.institutionId)
 
   if (error) {
     return Response.json({ error: 'Failed to load institution.', detail: error.message }, { status: 500 })
@@ -63,11 +73,13 @@ export async function PATCH(request) {
     return Response.json({ error: 'No valid fields to update.' }, { status: 400 })
   }
 
+  // SELECT_BASE, not SELECT: PATCH never touches `addons`, and selecting a
+  // column that doesn't exist yet (pre-0007) would fail the whole update.
   const { data: institution, error } = await supabaseAdmin
     .from('institutions')
     .update(updates)
     .eq('id', auth.institutionId)
-    .select(SELECT)
+    .select(SELECT_BASE)
     .single()
 
   if (error) {

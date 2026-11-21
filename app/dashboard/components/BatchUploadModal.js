@@ -16,7 +16,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Papa from 'papaparse'
-import { Upload, Download, AlertTriangle, CheckCircle2, Info } from 'lucide-react'
+import { Upload, AlertTriangle, CheckCircle2, Info } from 'lucide-react'
 import Modal from './Modal'
 import { useSessionContext } from '../SessionContext'
 
@@ -64,18 +64,6 @@ function guessMapping(headers, fields) {
   }
 
   return mapping
-}
-
-function downloadSampleCsv() {
-  const headers = FIELDS.map((f) => f.label).join(',')
-  const example = '"Adaeze Okafor","adaeze@example.com","08012345678","Digital Marketing Bootcamp","2026-07-20",""'
-  const blob = new Blob([`${headers}\n${example}\n`], { type: 'text/csv' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'markscertify-batch-template.csv'
-  a.click()
-  URL.revokeObjectURL(url)
 }
 
 export default function BatchUploadModal({ onClose, onComplete }) {
@@ -273,13 +261,6 @@ export default function BatchUploadModal({ onClose, onComplete }) {
             Upload a CSV with one row per earner. Required columns: Earner Name and Course/Program Title. Up to 500
             rows per batch.
           </p>
-          <button
-            onClick={downloadSampleCsv}
-            className="flex items-center gap-2 self-start text-sm text-[#B8962E] font-medium"
-          >
-            <Download size={14} />
-            Download sample CSV
-          </button>
           <label className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-zinc-200 py-10 cursor-pointer hover:border-[#B8962E]">
             <Upload size={24} className="text-zinc-400" />
             <span className="text-sm text-zinc-500">{fileName || 'Click to select a CSV file'}</span>

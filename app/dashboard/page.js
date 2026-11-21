@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Award, BarChart3, ShieldCheck, Tag, FilePlus2, ListChecks } from 'lucide-react'
+import { Award, BarChart3, ShieldCheck, Tag, FilePlus2, ListChecks, Check, ArrowRight } from 'lucide-react'
 import { useSessionContext } from './SessionContext'
 
 function timeAgo(dateString) {
@@ -48,8 +48,41 @@ export default function OverviewPage() {
     ? 0
     : Math.round((stats.institution.certsThisMonth / stats.institution.planLimit) * 100)
 
+  const setup = stats.setup || { profileComplete: true, templateCustomized: true }
+  const showSetup = !setup.profileComplete || !setup.templateCustomized
+
   return (
     <div className="flex flex-col gap-6">
+      {showSetup && (
+        <div className="rounded-xl border border-[#B8962E]/30 bg-[#B8962E]/[0.06] p-5">
+          <div className="flex items-start gap-3">
+            <div className="h-9 w-9 shrink-0 rounded-lg bg-[#B8962E]/15 flex items-center justify-center">
+              <ListChecks size={16} className="text-[#B8962E]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-zinc-900">Finish setting up MarksCertify</p>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                A couple of steps before your certificates are ready to send.
+              </p>
+              <div className="mt-4 flex flex-col gap-2">
+                <SetupStep
+                  done={setup.profileComplete}
+                  href="/dashboard/profile"
+                  label="Complete your institution profile"
+                  hint="Add your logo, signatory, and contact details"
+                />
+                <SetupStep
+                  done={setup.templateCustomized}
+                  href="/dashboard/templates"
+                  label="Customize your certificate template"
+                  hint="Set your colors, border style, and font"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard
@@ -129,6 +162,34 @@ export default function OverviewPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+function SetupStep({ done, href, label, hint }) {
+  return (
+    <Link
+      href={href}
+      className={`group flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
+        done ? 'border-zinc-200 bg-white/50' : 'border-[#B8962E]/30 bg-white hover:border-[#B8962E]'
+      }`}
+    >
+      <span
+        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+          done ? 'border-green-500 bg-green-500 text-white' : 'border-zinc-300 text-transparent'
+        }`}
+      >
+        <Check size={12} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={`block text-sm font-medium ${done ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>
+          {label}
+        </span>
+        {!done && <span className="block text-xs text-zinc-400">{hint}</span>}
+      </span>
+      {!done && (
+        <ArrowRight size={15} className="shrink-0 text-zinc-300 transition-colors group-hover:text-[#B8962E]" />
+      )}
+    </Link>
   )
 }
 

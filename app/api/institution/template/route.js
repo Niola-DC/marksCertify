@@ -12,7 +12,7 @@
 
 import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 import { requireAdmin } from '../../../lib/apiAuth'
-import { BASE_STYLES, FONT_OPTIONS, DEFAULT_TEMPLATE_CONFIG, HEX_COLOR_RE } from '../../../lib/templateOptions'
+import { BASE_STYLES, FONT_OPTIONS, DEFAULT_TEMPLATE_CONFIG, HEX_COLOR_RE, isMissingColumnError } from '../../../lib/templateOptions'
 
 export async function GET(request) {
   const auth = await requireAdmin(request)
@@ -25,10 +25,19 @@ export async function GET(request) {
     .single()
 
   if (error) {
+    // Template Builder migration (0006) not applied yet — no template_config
+    // column. Hand back the defaults and flag it as unconfigured so the
+    // page can say so, rather than 500-ing with a raw SQL error.
+    if (isMissingColumnError(error)) {
+      return Response.json({ templateConfig: DEFAULT_TEMPLATE_CONFIG, configured: false })
+    }
     return Response.json({ error: 'Failed to load template.', detail: error.message }, { status: 500 })
   }
 
-  return Response.json({ templateConfig: institution.template_config || DEFAULT_TEMPLATE_CONFIG })
+  return Response.json({
+    templateConfig: institution.template_config || DEFAULT_TEMPLATE_CONFIG,
+    configured: Boolean(institution.template_config),
+  })
 }
 
 export async function PATCH(request) {
@@ -60,6 +69,12 @@ export async function PATCH(request) {
     .single()
 
   if (error) {
+    if (isMissingColumnError(error)) {
+      return Response.json(
+        { error: 'Certificate template storage isn’t set up yet. Apply database migration 0006 to enable saving a template.' },
+        { status: 503 }
+      )
+    }
     return Response.json({ error: 'Failed to save template.', detail: error.message }, { status: 500 })
   }
 
