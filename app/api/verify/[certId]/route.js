@@ -7,13 +7,8 @@
 // Also called when anyone scans the QR code on a certificate.
 // ============================================================
 
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 import { rateLimit, getClientKey } from '../../../lib/rateLimit'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-)
 
 export async function GET(request, { params }) {
   const clientKey = getClientKey(request)

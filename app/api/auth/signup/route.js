@@ -10,10 +10,19 @@
 import { createClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 
-const supabaseAnon = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
+// Anon client used once, to mint a session for the just-created admin.
+// Created on first call, not at module load, so `next build` can collect
+// this route's page data without the Supabase env vars present.
+let anonClient = null
+function supabaseAnon() {
+  if (!anonClient) {
+    anonClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
+  }
+  return anonClient
+}
 
 export async function POST(request) {
   const body = await request.json().catch(() => ({}))
@@ -70,7 +79,7 @@ export async function POST(request) {
   }
 
   // 4. Mint a session for the new admin
-  const { data: signInData, error: signInError } = await supabaseAnon.auth.signInWithPassword({ email, password })
+  const { data: signInData, error: signInError } = await supabaseAnon().auth.signInWithPassword({ email, password })
 
   if (signInError || !signInData.session) {
     // Account was created successfully — just couldn't auto-login. Let them log in manually.
